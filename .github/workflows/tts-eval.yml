@@ -1,0 +1,160 @@
+name: TTS eval
+
+# Phase 2: Arabic TTS benchmark on the free GitHub-hosted runner (private repo: 2 vCPU).
+# Free, open-source engines only. No secrets, no accounts, no paid API: models are downloaded
+# anonymously from public, non-gated HuggingFace repos.
+#
+# Runs when the benchmark itself changes on a claude/** branch, or manually (once on main).
+# Cost: draws on the free included Actions minutes; every job has a hard timeout
+# (worst case ≈ 4×60 + 40 = 280 runner-minutes; a normal run is far less).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "media/tts-eval/**"
+      - ".github/workflows/tts-eval.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tts-eval-${{ github.ref }}
+  cancel-in-progress: false # queue: a new push waits, so a long run is never wasted
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      engines: ${{ steps.cfg.outputs.engines }}
+      reuse_run_id: ${{ steps.cfg.outputs.reuse_run_id }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - id: cfg
+        run: |
+          python3 -c "import json;c=json.load(open('media/tts-eval/run-config.json'));print('engines='+json.dumps(c['engines']));print('reuse_run_id='+str(c.get('reuse_run_id','')))" >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  synth:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ${{ fromJSON(needs.plan.outputs.engines) }}
+    env:
+      TTS_CACHE: /tmp/tts-cache # (the runner context is not available in job-level env)
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: System packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg espeak-ng
+
+      - name: Install engine (timed = cold-start cost)
+        run: |
+          start=$(date +%s)
+          python -m venv .venv && . .venv/bin/activate
+          CPU=https://download.pytorch.org/whl/cpu
+          case "${{ matrix.engine }}" in
+            silma|silma_fast)
+              pip install -q --index-url $CPU torch torchaudio torchvision
+              pip install -q silma-tts==1.0.5 soundfile ;;
+            chatterbox)
+              pip install -q --index-url $CPU torch==2.6.0 torchaudio==2.6.0
+              pip install -q "chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox@ab55923c27757c90cfcc407baa57dc25a7d25217" soundfile ;;
+            piper)
+              pip install -q piper-tts==1.8.0 soundfile numpy ;;
+            espeak)
+              pip install -q soundfile numpy ;;
+          esac
+          mkdir -p out/${{ matrix.engine }}
+          echo $(( $(date +%s) - start )) > out/${{ matrix.engine }}/install_s.txt
+          pip freeze > out/${{ matrix.engine }}/pip-freeze.txt
+
+      - name: Synthesise all passages (2 threads)
+        run: |
+          . .venv/bin/activate
+          cd media/tts-eval
+          python run.py --engine ${{ matrix.engine }} --out ../../out/${{ matrix.engine }} --threads 2 --time-budget 2700
+
+      - name: Engine result
+        if: always()
+        run: cat out/${{ matrix.engine }}/result.json || echo "no result"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tts-wav-${{ matrix.engine }}
+          path: out/${{ matrix.engine }}
+          retention-days: 3
+          if-no-files-found: warn
+
+  score:
+    needs: [plan, synth]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read # only to download WAV artifacts of the earlier run named in run-config.json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+      - run: pip install -q faster-whisper==1.2.1 soundfile numpy
+      - name: Reused engines from an earlier run
+        if: needs.plan.outputs.reuse_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tts-wav-*
+          path: reused
+          run-id: ${{ needs.plan.outputs.reuse_run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tts-wav-*
+          path: fresh
+      - name: Merge (fresh results win over reused ones)
+        run: |
+          mkdir -p out
+          for src in reused fresh; do
+            [ -d "$src" ] || continue
+            for d in "$src"/tts-wav-*; do e="${d#$src/tts-wav-}"; rm -rf "out/$e"; mv "$d" "out/$e"; echo "$e <- $src"; done
+          done
+      - name: Score (Whisper CER, loudness, pauses) + blind set
+        run: python media/tts-eval/score.py --in out --report report --asr large-v3-turbo --threads 2
+      - name: Job summary
+        if: always()
+        run: cat report/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Results (machine-readable, for the manager)
+        if: always()
+        run: python -c "import json;r=json.load(open('report/results.json'));[print('RESULT', json.dumps({k:v for k,v in e.items() if k!='samples'}, ensure_ascii=False)) for e in r]" || true
+      # Listening set for the owner (engine names hidden).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tts-blind-listening-set
+          path: report/blind
+          retention-days: 14
+      # Reveal key + full results: kept separate so listening stays blind.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tts-results-and-key
+          path: |
+            report/results.json
+            report/summary.md
+            report/blind_key.json
+          retention-days: 30

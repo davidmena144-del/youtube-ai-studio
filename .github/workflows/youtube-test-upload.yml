@@ -1,0 +1,50 @@
+name: YouTube private test upload
+
+# P5 acceptance: renders the fixture Short with the configured free TTS engine and uploads it as
+# PRIVATE (the script cannot publish), with thumbnail and Arabic captions, then verifies it.
+# Delete the test video from YouTube Studio afterwards if you like.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev --ignore-scripts # no dependency lifecycle scripts in jobs that hold secrets
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: bash scripts/install-media.sh "${{ vars.TTS_ENGINE || 'silma' }}"
+      - name: Render the fixture Short
+        working-directory: media
+        run: TTS_ENGINE="${{ vars.TTS_ENGINE || 'silma' }}" ../.venv-media/bin/python -m studio_media.produce --spec fixtures/short_sleep.json --out ../render --photos
+      - name: Upload as private and verify
+        run: node --import tsx scripts/youtube-test-upload.ts render
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-render
+          path: |
+            render/video.mp4
+            render/thumbnail.jpg
+            render/manifest.json
+          retention-days: 7

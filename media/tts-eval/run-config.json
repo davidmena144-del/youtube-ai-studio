@@ -1,0 +1,9 @@
+{
+  "_doc": "engines: which engines this run synthesises. reuse_run_id: an earlier TTS-eval run whose WAV artifacts (kept 3 days) supply every engine not re-run here, to save free Actions minutes. Use an empty string for a full fresh run.",
+  "engines": [
+    "silma",
+    "silma_fast",
+    "piper"
+  ],
+  "reuse_run_id": "43731704552"
+}
