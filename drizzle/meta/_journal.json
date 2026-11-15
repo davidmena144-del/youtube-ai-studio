@@ -43,6 +43,13 @@
       "when": 1794759173870,
       "tag": "0005_manager_api",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794760508551,
+      "tag": "0006_supabase_hardening",
+      "breakpoints": true
     }
   ]
 }
