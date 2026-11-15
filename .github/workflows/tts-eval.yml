@@ -32,7 +32,7 @@ jobs:
       matrix:
         engine: [silma, chatterbox, piper, espeak]
     env:
-      TTS_CACHE: ${{ runner.temp }}/tts-cache
+      TTS_CACHE: /tmp/tts-cache # (the runner context is not available in job-level env)
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
     steps:
       - uses: actions/checkout@v6
