@@ -3,8 +3,7 @@ import { ProjectCard } from "@/components/project-card";
 import { Empty, LinkButton, PageHeader } from "@/components/ui";
 import { PROJECT_STATUS_LABEL } from "@/lib/labels";
 import { projectStatus, type ProjectStatus } from "@/server/db/schema";
-import { listProjects } from "@/server/queries";
-import { getSettings } from "@/server/settings";
+import { getSettingsForAdmin, listProjects } from "@/server/queries";
 
 const FILTERS: { key: string; label: string; statuses?: ProjectStatus[] }[] = [
   { key: "all", label: "الكل" },
@@ -21,7 +20,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   const known = (projectStatus.enumValues as readonly string[]).includes(status ?? "");
   const [projects, settings] = await Promise.all([
     listProjects({ status: filter.statuses ?? (known ? [status as ProjectStatus] : undefined), limit: 200 }),
-    getSettings(),
+    getSettingsForAdmin(),
   ]);
   return (
     <>

@@ -5,13 +5,12 @@ import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Card, Empty, PageHeader, StatusBadge } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { JOB_STATUS_LABEL } from "@/lib/labels";
-import { listJobs } from "@/server/queries";
-import { getSettings } from "@/server/settings";
+import { getSettingsForAdmin, listJobs } from "@/server/queries";
 
 export const metadata: Metadata = { title: "المهام" };
 
 export default async function JobsPage() {
-  const [rows, settings] = await Promise.all([listJobs(100), getSettings()]);
+  const [rows, settings] = await Promise.all([listJobs(100), getSettingsForAdmin()]);
   const tz = settings.timeZone;
   return (
     <>

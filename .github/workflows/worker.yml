@@ -7,9 +7,14 @@ name: Worker
 #     and manually-dispatched workflows from there.
 #  2. Repository variables (Settings → Secrets and variables → Actions → Variables):
 #       WORKER_ENABLED = true            (the job is skipped otherwise)
-#       LLM_PROVIDER   = anthropic|mock  (explicit — must match the web app's setting)
-#  3. Repository secrets: DATABASE_URL (required), ANTHROPIC_API_KEY (if LLM_PROVIDER=anthropic),
-#     ENCRYPTION_KEY (from phase 3). The worker does NOT need SESSION_SECRET or the admin password.
+#       LLM_PROVIDER   = anthropic|mock  (REQUIRED — the worker refuses to start without it;
+#                                         use the same value as the web app)
+#  3. Repository secrets:
+#       DATABASE_URL            (required; the pooled URL is fine for the worker)
+#       MIGRATION_DATABASE_URL  (required if DATABASE_URL is a pooled URL: the DIRECT connection)
+#       ANTHROPIC_API_KEY       (required if LLM_PROVIDER=anthropic)
+#       ENCRYPTION_KEY          (from phase 3)
+#     The worker does NOT need SESSION_SECRET or the admin password.
 #
 # Minutes: each run is billed at least 1 minute. Private repos get 2,000 free minutes/month;
 # this schedule (every 2 hours ≈ 360 runs/month) leaves room for manual runs.
@@ -46,13 +51,17 @@ jobs:
         run: npm run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
 
       - name: Process queued jobs
         run: npm run worker:once
         env:
           NODE_ENV: production
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'mock' }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          # 25 min budget inside the 30 min job timeout; no job starts with < 12 min left
+          # (the Claude generation limit is 10 min), so a job is never killed mid-call.
           WORKER_TIME_BUDGET_MS: "1500000"
+          WORKER_MIN_REMAINING_MS: "720000"

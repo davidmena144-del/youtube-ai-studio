@@ -81,6 +81,24 @@ export async function markSucceeded(job: Pick<Job, "id" | "lockedBy">): Promise<
   return rows.length > 0;
 }
 
+/** How often a running job refreshes its lease. Must be well below LEASE_MS. */
+export const HEARTBEAT_MS = 60 * 1000;
+
+/**
+ * Refresh the lease of a job this worker is still running, so a long but healthy job is never
+ * mistaken for an abandoned one and handed to a second worker. Returns false if the lease is lost.
+ */
+export async function heartbeat(job: Pick<Job, "id" | "lockedBy">): Promise<boolean> {
+  const rows = await getDb().update(jobs).set({ lockedAt: new Date() }).where(ownedBy(job)).returning({ id: jobs.id });
+  return rows.length > 0;
+}
+
+/** True while this worker still holds the job's lease (used before saving paid results). */
+export async function stillOwns(job: Pick<Job, "id" | "lockedBy">, executor?: Executor): Promise<boolean> {
+  const rows = await (executor ?? getDb()).select({ id: jobs.id }).from(jobs).where(ownedBy(job));
+  return rows.length > 0;
+}
+
 /** Exponential backoff with jitter: ~30s, ~60s, ~120s ... capped at 1h. */
 export function backoffMs(attempt: number, random = Math.random): number {
   const base = Math.min(30_000 * 2 ** Math.max(0, attempt - 1), 60 * 60 * 1000);
@@ -142,8 +160,8 @@ export async function recoverStaleJobs(leaseMs = LEASE_MS): Promise<{ requeued: 
 }
 
 /** Manually retry a dead job (from the UI): resets attempts and schedules it now. */
-export async function retryJob(jobId: string): Promise<boolean> {
-  const rows = await getDb()
+export async function retryJob(jobId: string, executor?: Executor): Promise<boolean> {
+  const rows = await (executor ?? getDb())
     .update(jobs)
     .set({ status: "queued", attempts: 0, runAt: new Date(), lastError: null, finishedAt: null })
     .where(and(eq(jobs.id, jobId), inArray(jobs.status, ["dead", "failed"])))

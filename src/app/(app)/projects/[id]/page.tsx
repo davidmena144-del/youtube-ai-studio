@@ -14,8 +14,7 @@ import { Badge, Card, Field, input, StatusBadge } from "@/components/ui";
 import { formatDateTime, formatDuration, formatUsd, utcToZonedLocal } from "@/lib/format";
 import { FORMAT_LABEL, PROJECT_STATUS_LABEL } from "@/lib/labels";
 import { pipelineFor } from "@/server/manager/pipeline";
-import { projectDetail } from "@/server/queries";
-import { getSettings } from "@/server/settings";
+import { getSettingsForAdmin, projectDetail } from "@/server/queries";
 
 export const metadata: Metadata = { title: "تفاصيل المشروع" };
 
@@ -25,7 +24,7 @@ const DONE = ["awaiting_review", "approved", "publishing", "published"];
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const [d, settings] = await Promise.all([projectDetail(id), getSettings()]);
+  const [d, settings] = await Promise.all([projectDetail(id), getSettingsForAdmin()]);
   if (!d) notFound();
   const { project: p, artifacts: a } = d;
   const tz = settings.timeZone;

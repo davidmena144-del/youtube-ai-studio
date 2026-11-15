@@ -3,7 +3,7 @@ import type { Job } from "../db/schema";
 import { recordHistory } from "../history";
 import { JOB_PUBLISH, JOB_STAGE, onJobDead, runPublishJob, runStageJob } from "../manager/manager";
 import { errorMessage } from "../queue/errors";
-import { claimNext, markFailed, markSucceeded, recoverStaleJobs } from "../queue/queue";
+import { claimNext, heartbeat, HEARTBEAT_MS, markFailed, markSucceeded, recoverStaleJobs } from "../queue/queue";
 
 type Handler = (job: Job) => Promise<void>;
 
@@ -21,6 +21,10 @@ export async function processOne(workerId: string): Promise<boolean> {
   const job = await claimNext(workerId, Object.keys(HANDLERS));
   if (!job) return false;
   const handler = HANDLERS[job.type];
+  // Keep the lease fresh while the (possibly long) handler runs.
+  const beat = setInterval(() => {
+    heartbeat(job).catch((err) => console.error("[worker] heartbeat failed:", errorMessage(err)));
+  }, HEARTBEAT_MS);
   try {
     await handler(job);
     if (!(await markSucceeded(job))) {
@@ -50,6 +54,8 @@ export async function processOne(workerId: string): Promise<boolean> {
           : `فشلت المحاولة ${job.attempts} من ${job.maxAttempts} — ستُعاد تلقائيًا: ${errorMessage(err)}`,
     });
     if (outcome === "dead") await onJobDead(job, err);
+  } finally {
+    clearInterval(beat);
   }
   return true;
 }

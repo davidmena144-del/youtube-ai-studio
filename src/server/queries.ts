@@ -13,6 +13,7 @@ import {
 import { env } from "./env";
 import { loadArtifacts } from "./manager/manager";
 import { resolveLlmProviderId } from "./providers/llm";
+import { getSettings } from "./settings";
 
 export async function dashboardStats() {
   await requireAdmin();
@@ -148,4 +149,10 @@ export async function providerStatus() {
     workerInline: e.WORKER_INLINE,
     passwordHashed: Boolean(e.ADMIN_PASSWORD_HASH),
   };
+}
+
+/** Settings for rendering a page: same as getSettings(), but only for a valid, unrevoked session. */
+export async function getSettingsForAdmin() {
+  await requireAdmin();
+  return getSettings();
 }

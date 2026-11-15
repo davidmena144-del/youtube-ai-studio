@@ -3,8 +3,8 @@ import { updateSettingsAction } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/action-form";
 import { Badge, Card, Field, input, PageHeader } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import { providerStatus, type ProviderState } from "@/server/queries";
-import { CLAUDE_MODELS, EFFORT_LEVELS, getSettings } from "@/server/settings";
+import { getSettingsForAdmin, providerStatus, type ProviderState } from "@/server/queries";
+import { CLAUDE_MODELS, EFFORT_LEVELS } from "@/server/settings";
 
 export const metadata: Metadata = { title: "الإعدادات" };
 
@@ -32,7 +32,7 @@ function Row({ name, state, note }: { name: string; state: ProviderState; note?:
 }
 
 export default async function SettingsPage() {
-  const [s, ps] = await Promise.all([getSettings(), providerStatus()]);
+  const [s, ps] = await Promise.all([getSettingsForAdmin(), providerStatus()]);
   const tzs = TIME_ZONES.includes(s.timeZone) ? TIME_ZONES : [s.timeZone, ...TIME_ZONES];
   return (
     <>

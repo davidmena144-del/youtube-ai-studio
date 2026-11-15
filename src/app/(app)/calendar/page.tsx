@@ -3,15 +3,14 @@ import Link from "next/link";
 import { Card, Empty, PageHeader, StatusBadge } from "@/components/ui";
 import { dayKey, formatDate, formatDateTime } from "@/lib/format";
 import { FORMAT_LABEL, PROJECT_STATUS_LABEL } from "@/lib/labels";
-import { calendarItems, calendarWindow, listProjects } from "@/server/queries";
-import { getSettings } from "@/server/settings";
+import { calendarItems, calendarWindow, getSettingsForAdmin, listProjects } from "@/server/queries";
 
 export const metadata: Metadata = { title: "تقويم النشر" };
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ offset?: string }> }) {
   const { offset: offsetRaw } = await searchParams;
   const offset = Math.max(-12, Math.min(12, Number(offsetRaw ?? 0) || 0));
-  const settings = await getSettings();
+  const settings = await getSettingsForAdmin();
   const tz = settings.timeZone;
   const { from, to, now } = calendarWindow(offset);
   const [items, unscheduled] = await Promise.all([

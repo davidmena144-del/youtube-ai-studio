@@ -1,24 +1,33 @@
 /**
  * Applies pending SQL migrations from ./drizzle. Safe to run repeatedly, and safe when several
- * replicas start at once: a Postgres advisory lock serialises concurrent runs.
- * Usage: DATABASE_URL=... npm run db:migrate
+ * replicas start at once (advisory lock with a timeout, on a direct connection).
+ * Usage: DATABASE_URL=... [MIGRATION_DATABASE_URL=<direct url>] npm run db:migrate
  */
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { acquireLockWithTimeout, resolveMigrationUrl } from "../src/server/db/migration-lock";
 
 const LOCK_ID = 7_242_015; // arbitrary, app-specific
+const LOCK_TIMEOUT_MS = Number(process.env.MIGRATION_LOCK_TIMEOUT_MS ?? 5 * 60 * 1000);
 
 async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set");
-  const client = postgres(url, { max: 1, prepare: false });
+  const url = resolveMigrationUrl({ MIGRATION_DATABASE_URL: process.env.MIGRATION_DATABASE_URL, DATABASE_URL: process.env.DATABASE_URL });
+  const client = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
+  let locked = false;
   try {
-    await client`select pg_advisory_lock(${LOCK_ID})`;
+    await acquireLockWithTimeout(
+      async () => {
+        const [row] = await client<{ ok: boolean }[]>`select pg_try_advisory_lock(${LOCK_ID}) as ok`;
+        return row.ok;
+      },
+      { timeoutMs: LOCK_TIMEOUT_MS },
+    );
+    locked = true;
     await migrate(drizzle(client), { migrationsFolder: "./drizzle" });
     console.log("Migrations applied.");
   } finally {
-    await client`select pg_advisory_unlock(${LOCK_ID})`.catch(() => {});
+    if (locked) await client`select pg_advisory_unlock(${LOCK_ID})`.catch(() => {});
     await client.end({ timeout: 5 });
   }
 }

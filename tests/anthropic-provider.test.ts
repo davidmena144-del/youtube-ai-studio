@@ -9,7 +9,7 @@ import { NonRetryableError, RetryableError } from "@/server/queue/errors";
  * Exercises the REAL @anthropic-ai/sdk code path against a local imitation of the Messages API
  * (no network, no key, no cost). Verifies request shape and error handling.
  */
-type Scenario = "ok" | "truncated" | "refusal" | "unauthorized" | "badjson";
+type Scenario = "ok" | "truncated" | "refusal" | "unauthorized" | "badjson" | "stall";
 let scenario: Scenario = "ok";
 let requests: { headers: http.IncomingHttpHeaders; body: Record<string, unknown> }[] = [];
 let server: http.Server;
@@ -50,6 +50,12 @@ beforeAll(async () => {
         res.writeHead(401, { "content-type": "application/json" });
         return res.end(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid key" } }));
       }
+      if (scenario === "stall") {
+        // Headers and the first event arrive, then the stream stops forever.
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.write(`event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id: "m", type: "message", role: "assistant", model: "claude-opus-5-5", content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } } })}\n\n`);
+        return;
+      }
       if (scenario === "ok") return sse(res, JSON.stringify(valid), "end_turn");
       if (scenario === "truncated") return sse(res, JSON.stringify(valid).slice(0, 25), "max_tokens");
       if (scenario === "refusal") return sse(res, "", "refusal");
@@ -61,6 +67,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   process.env.ANTHROPIC_BASE_URL = savedBase;
+  server.closeAllConnections();
   await new Promise((r) => server.close(r));
 });
 beforeEach(() => {
@@ -111,5 +118,14 @@ describe("AnthropicLlmProvider via the real SDK", () => {
   it("treats malformed JSON as retryable", async () => {
     scenario = "badjson";
     await expect(provider().generateStructured(req)).rejects.toBeInstanceOf(RetryableError);
+  });
+
+  it("fix 3: a stream that stalls after the headers is cut off by the overall deadline (one request)", async () => {
+    scenario = "stall";
+    const started = Date.now();
+    const p = new AnthropicLlmProvider("sk-test-not-real", "claude-opus-5-5", "medium", { generationTimeoutMs: 300 });
+    await expect(p.generateStructured(req)).rejects.toThrow(/did not finish within/);
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(requests).toHaveLength(1); // no hidden SDK retry that would pay again
   });
 });

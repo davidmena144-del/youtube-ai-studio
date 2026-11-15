@@ -20,10 +20,16 @@ const PRICING: Record<string, [number, number]> = {
 const SUPPORTS_SERVER_FALLBACK = new Set(["claude-opus-5-5", "claude-sonnet-5-5"]);
 
 /**
- * Per HTTP request. With maxRetries=1 the worst case is ~2×6 min, safely below the queue's
- * 15-minute job lease, so a slow call can never be "recovered" and run twice in parallel.
+ * Hard limit for one generation, covering the connection AND the whole streamed body.
+ * (The SDK's own `timeout` only covers the wait for response headers: its timer is cleared once
+ * fetch resolves, so a stalled stream would otherwise hang forever.) It is kept below the queue's
+ * 15-minute lease; the worker also refreshes the lease while a job runs (heartbeat), and the
+ * result is saved only if this worker still owns the job — together these prevent a paid call
+ * from being executed twice in parallel.
  */
-export const REQUEST_TIMEOUT_MS = 6 * 60 * 1000;
+export const GENERATION_TIMEOUT_MS = 10 * 60 * 1000;
+/** Time to receive response headers (SDK-level timeout). */
+const CONNECT_TIMEOUT_MS = 2 * 60 * 1000;
 
 export function estimateCost(model: string, inputTokens: number, outputTokens: number): number | null {
   const p = PRICING[model];
@@ -35,13 +41,18 @@ export class AnthropicLlmProvider implements LlmProvider {
   readonly id = "anthropic";
   private readonly client: Anthropic;
 
+  private readonly generationTimeoutMs: number;
+
   constructor(
     apiKey: string,
     readonly model: string,
     private readonly effort: Effort,
+    opts: { generationTimeoutMs?: number } = {},
   ) {
-    // The SDK retries transient errors once itself; the job queue retries on top of that.
-    this.client = new Anthropic({ apiKey, maxRetries: 1, timeout: REQUEST_TIMEOUT_MS });
+    this.generationTimeoutMs = opts.generationTimeoutMs ?? GENERATION_TIMEOUT_MS;
+    // No SDK-level retries: a retry inside one job would re-pay for the call outside the queue's
+    // attempt accounting. Transient failures are retried by the job queue (bounded by maxAttempts).
+    this.client = new Anthropic({ apiKey, maxRetries: 0, timeout: Math.min(CONNECT_TIMEOUT_MS, this.generationTimeoutMs) });
   }
 
   async generateStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
@@ -51,19 +62,29 @@ export class AnthropicLlmProvider implements LlmProvider {
     // paid retries. We check stop_reason first, then validate with Zod ourselves.
     const { type, schema } = betaZodOutputFormat(req.schema);
     let message: Anthropic.Beta.BetaMessage;
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), this.generationTimeoutMs);
     try {
-      // Streaming avoids HTTP timeouts on long scripts.
-      const stream = this.client.beta.messages.stream({
-        model: this.model,
-        max_tokens: req.maxTokens ?? 32000,
-        system: req.system,
-        messages: [{ role: "user", content: req.prompt }],
-        output_config: { effort: this.effort, format: { type, schema } },
-        ...(useFallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
-      });
+      // Streaming avoids HTTP timeouts on long scripts; the abort signal bounds the whole stream.
+      const stream = this.client.beta.messages.stream(
+        {
+          model: this.model,
+          max_tokens: req.maxTokens ?? 32000,
+          system: req.system,
+          messages: [{ role: "user", content: req.prompt }],
+          output_config: { effort: this.effort, format: { type, schema } },
+          ...(useFallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+        },
+        { signal: deadline.signal },
+      );
       message = await stream.finalMessage();
     } catch (err) {
+      if (deadline.signal.aborted) {
+        throw new RetryableError(`Claude did not finish within ${Math.round(this.generationTimeoutMs / 1000)} s`, undefined, { cause: err });
+      }
       throw classifyAnthropicError(err);
+    } finally {
+      clearTimeout(timer);
     }
 
     if (message.stop_reason === "refusal") {

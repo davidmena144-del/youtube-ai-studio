@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui";
-import { getSettings } from "@/server/settings";
+import { getSettingsForAdmin } from "@/server/queries";
 import { NewProjectForm } from "./new-project-form";
 
 export const metadata: Metadata = { title: "مشروع جديد" };
 
 export default async function NewProjectPage() {
-  const s = await getSettings();
+  const s = await getSettingsForAdmin();
   return (
     <>
       <PageHeader title="مشروع جديد" subtitle="حدد الموضوع، وسيبدأ مدير Claude بتوزيع العمل على الوكلاء" />

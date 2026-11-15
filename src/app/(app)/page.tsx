@@ -2,15 +2,14 @@ import Link from "next/link";
 import { ProjectCard } from "@/components/project-card";
 import { Card, Empty, LinkButton, PageHeader, Stat } from "@/components/ui";
 import { formatDateTime, formatUsd } from "@/lib/format";
-import { dashboardStats, listHistory, listProjects } from "@/server/queries";
-import { getSettings } from "@/server/settings";
+import { dashboardStats, getSettingsForAdmin, listHistory, listProjects } from "@/server/queries";
 
 export default async function DashboardPage() {
   const [stats, attention, recent, settings, events] = await Promise.all([
     dashboardStats(),
     listProjects({ status: ["awaiting_review", "failed", "approved"], limit: 10 }),
     listProjects({ limit: 5 }),
-    getSettings(),
+    getSettingsForAdmin(),
     listHistory({ limit: 6 }),
   ]);
   const inProgress = (stats.status.queued ?? 0) + (stats.status.in_progress ?? 0) + (stats.status.changes_requested ?? 0);

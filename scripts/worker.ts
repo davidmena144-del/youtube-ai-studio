@@ -4,11 +4,15 @@
  *   npm run worker:once     — drain the queue then exit (GitHub Actions / cron)
  */
 import { closeDb } from "@/server/db/client";
+import { GENERATION_TIMEOUT_MS } from "@/server/providers/llm/anthropic";
 import { drain, newWorkerId } from "@/server/worker/run";
 
 const once = process.argv.includes("--once");
 const POLL_MS = Number(process.env.WORKER_POLL_MS ?? 5000);
 const BUDGET_MS = Number(process.env.WORKER_TIME_BUDGET_MS ?? 20 * 60 * 1000);
+// "--once" runs under a hard host time limit (GitHub Actions job timeout). Never START a job
+// unless the longest possible stage (the Claude generation limit + margin) still fits.
+const MIN_REMAINING_MS = Number(process.env.WORKER_MIN_REMAINING_MS ?? GENERATION_TIMEOUT_MS + 2 * 60 * 1000);
 
 let stopping = false;
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
@@ -21,8 +25,11 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
 async function main() {
   const workerId = newWorkerId(once ? "once" : "loop");
   console.log(`[worker] ${workerId} started (${once ? "drain once" : "loop"})`);
+  if (once && BUDGET_MS <= MIN_REMAINING_MS) {
+    throw new Error(`WORKER_TIME_BUDGET_MS (${BUDGET_MS}) must exceed WORKER_MIN_REMAINING_MS (${MIN_REMAINING_MS})`);
+  }
   if (once) {
-    const n = await drain({ workerId, deadlineMs: BUDGET_MS, maxJobs: 500 });
+    const n = await drain({ workerId, deadlineMs: BUDGET_MS, minRemainingMs: MIN_REMAINING_MS, maxJobs: 500 });
     console.log(`[worker] processed ${n} job(s)`);
     return;
   }

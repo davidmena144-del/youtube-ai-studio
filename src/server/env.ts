@@ -21,9 +21,17 @@ const EnvSchema = z.object({
   /** base64-encoded 32 bytes. Required only when encrypted secrets are stored (phase 3). */
   ENCRYPTION_KEY: z.string().optional(),
 
-  /** auto = anthropic if ANTHROPIC_API_KEY is set, otherwise mock. Set it explicitly in production. */
+  /**
+   * mock | anthropic. "auto" (anthropic if a key is set, otherwise mock) is a development
+   * convenience only: production must choose explicitly, so it can never fall back to mock silently.
+   */
   LLM_PROVIDER: z.enum(["auto", "mock", "anthropic"]).default("auto"),
   ANTHROPIC_API_KEY: z.string().optional(),
+
+  /** Header set by the host's edge that carries the real client IP (e.g. fly-client-ip). See auth-core. */
+  TRUSTED_IP_HEADER: z.string().optional(),
+  /** Set to "1" automatically by Vercel. */
+  VERCEL: z.string().optional(),
 
   /** Only dry_run exists in phase 1. "live" is rejected until phase 3 is built and tested. */
   PUBLISHING_MODE: z.enum(["dry_run"]).default("dry_run"),
@@ -54,7 +62,17 @@ export function env(): Env {
     // Only report variable names and messages — never values.
     fail(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
   }
-  cached = parsed.data;
+  const data = parsed.data;
+  if (data.NODE_ENV === "production") {
+    // Fail loudly instead of silently producing mock content in production.
+    if (!process.env.LLM_PROVIDER || data.LLM_PROVIDER === "auto") {
+      fail('LLM_PROVIDER must be set explicitly in production ("mock" or "anthropic")');
+    }
+    if (data.LLM_PROVIDER === "anthropic" && !data.ANTHROPIC_API_KEY) {
+      fail("LLM_PROVIDER=anthropic requires ANTHROPIC_API_KEY");
+    }
+  }
+  cached = data;
   return cached;
 }
 

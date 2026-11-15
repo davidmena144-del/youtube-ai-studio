@@ -19,7 +19,7 @@ import { createLlmProvider } from "../providers/llm";
 import { DryRunPublisher } from "../providers/publisher/dry-run";
 import type { Publisher } from "../providers/publisher/types";
 import { errorMessage, NonRetryableError } from "../queue/errors";
-import { cancelProjectJobs, enqueue, retryJob } from "../queue/queue";
+import { cancelProjectJobs, enqueue, retryJob, stillOwns } from "../queue/queue";
 import { getSettings } from "../settings";
 import { isStageId, nextStage, pipelineFor, stageDef, type StageId } from "./pipeline";
 
@@ -253,7 +253,9 @@ export async function runStageJob(job: Job): Promise<void> {
   };
 
   const saved = await db.transaction(async (tx) => {
-    // Re-check (and lock the project row) after the slow LLM call: the user may have cancelled meanwhile.
+    // Re-check after the slow LLM call: the user may have cancelled meanwhile, or this worker may
+    // have lost the job's lease to another worker (which would then save its own result).
+    if (!(await stillOwns(job, tx))) return false;
     const [locked] = await tx.update(projects).set({ updatedAt: new Date() }).where(stillCurrent(payload)).returning({ id: projects.id });
     if (!locked) return false;
     const [{ v }] = await tx
@@ -279,9 +281,9 @@ export async function runStageJob(job: Job): Promise<void> {
     // The call was paid for, so keep its usage on record, but discard the output.
     await db
       .update(stageRuns)
-      .set({ status: "failed", error: "نتيجة مهملة: أُلغي المشروع أو تغيّرت مراجعته أثناء التنفيذ", ...usageFields })
+      .set({ status: "failed", error: "نتيجة مهملة: أُلغي المشروع أو تغيّرت مراجعته أو فُقدت ملكية المهمة أثناء التنفيذ", ...usageFields })
       .where(eq(stageRuns.id, run.id));
-    await recordSkipped(payload, job, "أُلغي المشروع أثناء التنفيذ، أُهملت النتيجة");
+    await recordSkipped(payload, job, "أُلغي المشروع أو انتقلت المهمة إلى worker آخر أثناء التنفيذ، أُهملت النتيجة");
     return;
   }
 
@@ -461,10 +463,40 @@ export async function submitReview(raw: z.infer<typeof ReviewInput>) {
   });
 }
 
+/**
+ * Requeue a dead stage job and put its project back to "queued" — atomically, and only if the job
+ * belongs to the project's CURRENT revision and the project is still "failed". (Retrying a job
+ * from an older revision would just skip itself and leave the project stuck in "queued".)
+ */
+async function requeueDeadStageJob(dead: Job) {
+  if (dead.type === JOB_PUBLISH) {
+    throw new UserFacingError("لإعادة النشر استخدم زر النشر من صفحة المشروع بعد مراجعة سبب الفشل");
+  }
+  if (!dead.projectId) throw new UserFacingError("مهمة بلا مشروع");
+  const payload = dead.payload as unknown as StagePayload;
+  await getDb().transaction(async (tx) => {
+    const [row] = await tx
+      .update(projects)
+      .set({ status: "queued", lastError: null })
+      .where(
+        and(
+          eq(projects.id, dead.projectId!),
+          eq(projects.status, "failed"),
+          eq(projects.revision, payload.revision),
+          eq(projects.autoRevisions, payload.autoRevision),
+        ),
+      )
+      .returning({ id: projects.id });
+    if (!row) throw new UserFacingError("هذه المهمة لا تخص المراجعة الحالية للمشروع أو أن حالته تغيّرت — لا داعي لإعادتها");
+    if (!(await retryJob(dead.id, tx))) throw new UserFacingError("لا يمكن إعادة هذه المهمة");
+  });
+  await recordHistory({ actor: "user", action: "job.retried", projectId: dead.projectId, entityType: "job", entityId: dead.id, message: "إعادة محاولة يدوية" });
+}
+
 /** Retry the most recent dead job of a failed project. */
 export async function retryProject(projectId: string) {
   const project = await mustGetProject(projectId);
-  if (project.status !== "failed" && project.status !== "approved") throw new UserFacingError("لا توجد مهمة فاشلة لإعادتها");
+  if (project.status !== "failed") throw new UserFacingError("لا توجد مهمة فاشلة لإعادتها");
   const [dead] = await getDb()
     .select()
     .from(jobs)
@@ -472,35 +504,28 @@ export async function retryProject(projectId: string) {
     .orderBy(desc(jobs.updatedAt))
     .limit(1);
   if (!dead) throw new UserFacingError("لا توجد مهمة فاشلة لإعادتها");
-  if (dead.type === JOB_PUBLISH) {
-    throw new UserFacingError("لإعادة النشر استخدم زر النشر مجددًا بعد مراجعة سبب الفشل");
-  }
-  await retryJob(dead.id);
-  await getDb().update(projects).set({ status: "queued", lastError: null }).where(eq(projects.id, projectId));
-  await recordHistory({ actor: "user", action: "job.retried", projectId, entityType: "job", entityId: dead.id, message: "إعادة محاولة يدوية" });
+  await requeueDeadStageJob(dead);
 }
 
-/** Retry one dead job from the jobs page. Publish jobs are excluded on purpose (see retryProject). */
+/** Retry one dead job from the jobs page. Publish jobs are excluded on purpose. */
 export async function retryJobById(jobId: string) {
   if (!z.string().uuid().safeParse(jobId).success) throw new UserFacingError("معرّف مهمة غير صالح");
   const [job] = await getDb().select().from(jobs).where(eq(jobs.id, jobId));
   if (!job) throw new UserFacingError("المهمة غير موجودة");
-  if (job.type === JOB_PUBLISH) throw new UserFacingError("لإعادة النشر استخدم زر النشر من صفحة المشروع بعد مراجعة سبب الفشل");
-  if (!(await retryJob(jobId))) throw new UserFacingError("لا يمكن إعادة هذه المهمة");
-  if (job.projectId) {
-    await getDb()
-      .update(projects)
-      .set({ status: "queued", lastError: null })
-      .where(and(eq(projects.id, job.projectId), eq(projects.status, "failed")));
-  }
-  await recordHistory({ actor: "user", action: "job.retried", projectId: job.projectId, entityType: "job", entityId: jobId, message: "إعادة مهمة يدويًا" });
+  if (job.status !== "dead") throw new UserFacingError("لا يمكن إعادة هذه المهمة");
+  await requeueDeadStageJob(job);
 }
 
 export async function cancelProject(projectId: string) {
-  const project = await mustGetProject(projectId);
-  if (["published", "publishing"].includes(project.status)) throw new UserFacingError("لا يمكن إلغاء مشروع منشور");
+  await mustGetProject(projectId);
+  // Compare-and-set: a concurrent publish request cannot slip in between the check and the write.
+  const [row] = await getDb()
+    .update(projects)
+    .set({ status: "cancelled", currentStage: null })
+    .where(and(eq(projects.id, projectId), notInArray(projects.status, ["publishing", "published", "cancelled"])))
+    .returning({ id: projects.id });
+  if (!row) throw new UserFacingError("لا يمكن إلغاء هذا المشروع في حالته الحالية (منشور أو جارٍ نشره أو ملغى)");
   await cancelProjectJobs(projectId);
-  await getDb().update(projects).set({ status: "cancelled", currentStage: null }).where(eq(projects.id, projectId));
   await recordHistory({ actor: "user", action: "project.cancelled", projectId, message: "تم إلغاء المشروع" });
 }
 
@@ -555,7 +580,12 @@ export async function requestPublish(projectId: string) {
       .onConflictDoNothing()
       .returning();
     if (!pub) throw new UserFacingError("يوجد نشر سابق لهذا المشروع — تم منع التكرار");
-    await tx.update(projects).set({ status: "publishing" }).where(eq(projects.id, project.id));
+    const [claimed] = await tx
+      .update(projects)
+      .set({ status: "publishing" })
+      .where(and(eq(projects.id, project.id), eq(projects.status, "approved")))
+      .returning({ id: projects.id });
+    if (!claimed) throw new UserFacingError("تغيّرت حالة المشروع للتو — حدّث الصفحة");
     await enqueue(
       { type: JOB_PUBLISH, payload: { publicationId: pub.id }, idempotencyKey, projectId: project.id, maxAttempts: 3 },
       tx,
@@ -586,6 +616,9 @@ export async function runPublishJob(job: Job) {
     throw new NonRetryableError("A previous upload attempt was interrupted. Check the channel before retrying to avoid a duplicate video.");
   }
   const project = await mustGetProject(pub.projectId);
+  if (project.status !== "publishing") {
+    throw new NonRetryableError(`Project is no longer waiting to be published (status: ${project.status})`);
+  }
   const arts = await loadArtifacts(project.id);
   if (!arts.seo) throw new NonRetryableError("SEO metadata is missing");
 
@@ -614,7 +647,10 @@ export async function runPublishJob(job: Job) {
       .update(publications)
       .set({ status: "succeeded", externalId: result.externalId, externalUrl: result.externalUrl, request, response: result.raw, error: null })
       .where(eq(publications.id, pub.id));
-    await tx.update(projects).set({ status: "published", lastError: null }).where(eq(projects.id, project.id));
+    await tx
+      .update(projects)
+      .set({ status: "published", lastError: null })
+      .where(and(eq(projects.id, project.id), eq(projects.status, "publishing")));
   });
   await recordHistory({
     actor: "worker",

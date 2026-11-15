@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, Empty, PageHeader } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import { listHistory } from "@/server/queries";
-import { getSettings } from "@/server/settings";
+import { getSettingsForAdmin, listHistory } from "@/server/queries";
 
 export const metadata: Metadata = { title: "السجل" };
 
@@ -14,7 +13,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   const before = Number(sp.before);
   const beforeId = Number.isSafeInteger(before) && before > 0 ? before : undefined;
   const level = sp.level === "warn" || sp.level === "error" ? sp.level : undefined;
-  const [rows, settings] = await Promise.all([listHistory({ beforeId, level, limit: PAGE }), getSettings()]);
+  const [rows, settings] = await Promise.all([listHistory({ beforeId, level, limit: PAGE }), getSettingsForAdmin()]);
   const qs = (extra: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries({ level, ...extra })) if (v) p.set(k, v);
