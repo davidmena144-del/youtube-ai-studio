@@ -1,8 +1,9 @@
 name: YouTube connect
 
-# One-time: link the channel. Run manually, open the job log (or summary), go to the shown URL on
-# your phone and enter the code. The refresh token is stored encrypted in the database.
-# Secrets: DATABASE_URL, ENCRYPTION_KEY, YT_CLIENT_ID, YT_CLIENT_SECRET.
+# One-time check of the YouTube link. With the YT_REFRESH_TOKEN secret (OAuth Playground, see
+# docs/SETUP.md) it verifies Data + Analytics access and records the channel id. Without it, it falls
+# back to the device flow (code shown in this log; Data API only).
+# Secrets: DATABASE_URL, ENCRYPTION_KEY, YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN.
 
 on:
   workflow_dispatch:
@@ -34,3 +35,4 @@ jobs:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}

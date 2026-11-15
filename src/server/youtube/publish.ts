@@ -31,9 +31,12 @@ export function ytConfigFromEnv(env = process.env): YtConfig {
   };
 }
 
-export async function youtubeFromStore(cfg: YtConfig): Promise<YouTube> {
+export async function youtubeFromStore(cfg: YtConfig, env = process.env): Promise<YouTube> {
+  // Primary: refresh token obtained once via Google's OAuth Playground and kept ONLY as a GitHub
+  // secret (YT_REFRESH_TOKEN). It covers YouTube Data + Analytics (the device flow cannot do Analytics).
+  if (env.YT_REFRESH_TOKEN) return new YouTube(cfg, { access_token: "", refresh_token: env.YT_REFRESH_TOKEN, expires_at: 0 });
   const raw = await getSecret(TOKEN_SECRET);
-  if (!raw) throw new NonRetryableError("YouTube is not connected: no stored OAuth token (run the youtube-connect workflow)");
+  if (!raw) throw new NonRetryableError("YouTube is not connected: set the YT_REFRESH_TOKEN secret (docs/SETUP.md) or run the youtube-connect workflow");
   return new YouTube(cfg, JSON.parse(raw) as TokenSet, (t) => putSecret(TOKEN_SECRET, JSON.stringify(t)));
 }
 

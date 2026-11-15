@@ -7,7 +7,7 @@ import { one, sql } from "@/server/db/client";
 import { projects, publications } from "@/server/db/schema";
 import { RetryableError } from "@/server/queue/errors";
 import { pollDeviceFlow, startDeviceFlow, YouTube, type YtConfig } from "@/server/youtube/client";
-import { publishProject, type Seo } from "@/server/youtube/publish";
+import { publishProject, youtubeFromStore, type Seo } from "@/server/youtube/publish";
 import { startFakeYouTube } from "./helpers/fake-youtube";
 import { useTestDb } from "./helpers/db";
 
@@ -153,6 +153,15 @@ describe("YouTube publisher (against a fake Google API)", () => {
     setTimeout(() => (fake.state.deviceApproved = true), 30);
     const tokens = await pollDeviceFlow(cfg, d.device_code, 0, Date.now() + 5000, (ms) => new Promise((r) => setTimeout(r, Math.max(ms, 10))));
     expect(tokens.refresh_token).toBe("rt-dev");
+  });
+
+  it("YT_REFRESH_TOKEN (OAuth Playground) is used directly: refresh → upload works with no stored token", async () => {
+    const p = await producedProject();
+    const client = await youtubeFromStore(cfg, { YT_REFRESH_TOKEN: "rt-from-secret" } as NodeJS.ProcessEnv);
+    const r = await publishProject({ projectId: p.id, channelId, outDir, seo, publishAt: null, yt: client });
+    expect(r.videoId).toBeTruthy();
+    expect(fake.state.tokenRefreshes).toBe(1);
+    await expect(youtubeFromStore(cfg, {} as NodeJS.ProcessEnv)).rejects.toThrow(/not connected/);
   });
 
   it("analytics report rows are parsed by column name", async () => {

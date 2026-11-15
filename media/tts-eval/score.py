@@ -23,8 +23,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import load_passages, normalize_for_cer  # noqa: E402
 
-BLIND_SAMPLES = ["p02_numbers", "p08_prosody", "p11_short_script"]
-TEXT_ONLY_TAGS = {"numbers", "latin-script", "loanwords"}  # excluded from the headline CER
+BLIND_SAMPLES = ["p02_numbers", "p08_prosody", "p11_short_script", "p13_egyptian", "p14_emotion_excited"]
+TEXT_ONLY_TAGS = {"numbers", "latin-script", "loanwords", "dialect"}  # excluded from the headline CER
 GATE_RTF = 1.5
 GATE_CER = 0.15  # informational: owner's listening score is the real quality gate
 

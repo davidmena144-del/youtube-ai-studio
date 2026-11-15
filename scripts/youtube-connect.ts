@@ -13,8 +13,20 @@ import { TOKEN_SECRET, ytConfigFromEnv } from "../src/server/youtube/publish";
 
 async function main() {
   const env = workerEnv();
-  if (!env.ENCRYPTION_KEY) throw new Error("ENCRYPTION_KEY is required (npm run gen-secrets)");
   const cfg = ytConfigFromEnv();
+  if (process.env.YT_REFRESH_TOKEN) {
+    // Playground token from the GitHub secret: verify it works for both APIs; nothing to store.
+    const yt = new YouTube(cfg, { access_token: "", refresh_token: process.env.YT_REFRESH_TOKEN, expires_at: 0 });
+    const channel = await yt.myChannel();
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await yt.videoReport(new Date(Date.now() - 28 * 86400_000).toISOString().slice(0, 10), today);
+    const local = await getChannel();
+    if (local) await one(sql`UPDATE channels SET youtube_channel_id = ${channel.id}, title = ${channel.title}, updated_at = now() WHERE id = ${local.id}::uuid RETURNING id`);
+    console.log(`Connected: "${channel.title}" (${channel.id}). Data API OK; Analytics API OK (${rows.length} video rows).`);
+    return;
+  }
+  // Fallback: device flow (YouTube Data API only — Google does not allow Analytics on this flow).
+  if (!env.ENCRYPTION_KEY) throw new Error("ENCRYPTION_KEY is required to store the device-flow token");
   const d = await startDeviceFlow(cfg);
   const banner = `\n=== Approve YouTube access ===\nOpen: ${d.verification_url}\nCode: ${d.user_code}\n(expires in ${Math.round(d.expires_in / 60)} min)\n`;
   console.log(banner);
