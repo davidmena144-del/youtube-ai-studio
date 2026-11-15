@@ -13,6 +13,7 @@ export const COLORS = {
 
 export const FONT =
   '"Helvetica Neue", "Inter", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
+export const FONT_AR = `"Cairo", ${'"Helvetica Neue", "Inter", system-ui, -apple-system, "Segoe UI", Arial, sans-serif'}`;
 export const MONO =
   '"SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace';
 

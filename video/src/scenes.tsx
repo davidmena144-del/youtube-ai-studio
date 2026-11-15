@@ -5,7 +5,8 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import {COLORS, FONT, MONO} from './theme';
+import {COLORS, FONT, FONT_AR, MONO} from './theme';
+import {STRINGS, Lang} from './i18n';
 import {
   envelope,
   GlowBG,
@@ -18,63 +19,96 @@ import {
   EASE_OUT,
 } from './lib';
 
+const ff = (lang: Lang) => (lang === 'ar' ? FONT_AR : FONT);
+const isRtl = (lang: Lang) => STRINGS[lang].dir === 'rtl';
+// Arabic is cursive — never letter-space it.
+const ls = (lang: Lang, v: number) => (lang === 'ar' ? 0 : v);
+
 /* ------------------------------------------------------------------ */
-/* Scene 1 — Cold open / logo                                          */
+/* Brand lockup (lang-aware)                                           */
 /* ------------------------------------------------------------------ */
-export const ColdOpen: React.FC<{dur: number}> = ({dur}) => {
+const BrandLockup: React.FC<{lang: Lang; big: number}> = ({lang, big}) => {
+  const t = STRINGS[lang];
+  if (t.brandLine2) {
+    // Arabic: two stacked lines
+    return (
+      <div
+        dir="rtl"
+        style={{display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: FONT_AR, lineHeight: 1.12}}
+      >
+        <div style={{display: 'flex', gap: big * 0.12, fontSize: big * 0.92, fontWeight: 800}}>
+          {t.brand.map((w, i) => (
+            <span key={i} style={{color: COLORS.ink, textShadow: '0 10px 40px rgba(0,0,0,.5)'}}>
+              {w}
+            </span>
+          ))}
+        </div>
+        <div
+          style={{
+            fontSize: big * 0.56,
+            fontWeight: 800,
+            color: COLORS.accent,
+            marginTop: big * 0.04,
+            textShadow: `0 10px 44px ${hexA(COLORS.accent, 0.5)}`,
+          }}
+        >
+          {t.brandLine2}
+        </div>
+      </div>
+    );
+  }
+  // Latin: single row
+  return (
+    <div style={{display: 'flex', gap: big * 0.18, fontSize: big, fontWeight: 800, letterSpacing: -2, fontFamily: FONT}}>
+      {t.brand.map((w, i) => {
+        const accent = w === t.brandAccent;
+        return (
+          <span
+            key={i}
+            style={{
+              color: accent ? COLORS.accent : COLORS.ink,
+              textShadow: accent ? `0 10px 44px ${hexA(COLORS.accent, 0.5)}` : '0 10px 40px rgba(0,0,0,.5)',
+            }}
+          >
+            {w}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/* Scene 1 — Cold open                                                 */
+/* ------------------------------------------------------------------ */
+export const ColdOpen: React.FC<{dur: number; lang: Lang}> = ({dur, lang}) => {
   const frame = useCurrentFrame();
   const glyph = useSpring(8, 13);
   const bgIn = interpolate(frame, [0, 24], [0, 1], {extrapolateRight: 'clamp'});
-  const flash = interpolate(frame, [44, 52, 70], [0, 0.5, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const flash = interpolate(frame, [44, 52, 70], [0, 0.5, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const out = interpolate(frame, [dur - 18, dur], [1, 0], {extrapolateLeft: 'clamp'});
   const scale = interpolate(frame, [0, dur], [1.08, 1.0], {easing: EASE_OUT});
+  const wordP = useSpring(30, 60);
+  const wordO = interpolate(frame, [30, 50], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 
   return (
     <AbsoluteFill style={{backgroundColor: COLORS.bg, opacity: out}}>
       <AbsoluteFill style={{transform: `scale(${scale})`, opacity: bgIn}}>
         <GlowBG intensity={1.1} />
       </AbsoluteFill>
-      <AbsoluteFill
-        style={{justifyContent: 'center', alignItems: 'center', flexDirection: 'column', fontFamily: FONT}}
-      >
+      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', flexDirection: 'column'}}>
         <div
           style={{
             opacity: interpolate(frame, [6, 22], [0, 1], {extrapolateRight: 'clamp'}),
-            transform: `scale(${interpolate(glyph, [0, 1], [0.5, 1])}) rotate(${interpolate(
-              glyph,
-              [0, 1],
-              [-14, 0],
-            )}deg)`,
+            transform: `scale(${interpolate(glyph, [0, 1], [0.5, 1])}) rotate(${interpolate(glyph, [0, 1], [-14, 0])}deg)`,
             marginBottom: 44,
             filter: 'drop-shadow(0 18px 55px rgba(255,46,76,0.4))',
           }}
         >
           <PlayGlyph size={132} />
         </div>
-        <div style={{display: 'flex', gap: 26, fontSize: 128, fontWeight: 800, letterSpacing: -2}}>
-          {['YouTube', 'AI', 'Studio'].map((w, i) => {
-            const p = useSpringAt(26 + i * 7);
-            return (
-              <span
-                key={i}
-                style={{
-                  display: 'inline-block',
-                  transform: `translateY(${interpolate(p, [0, 1], [120, 0])}px)`,
-                  opacity: interpolate(frame, [26 + i * 7, 42 + i * 7], [0, 1], {
-                    extrapolateLeft: 'clamp',
-                    extrapolateRight: 'clamp',
-                  }),
-                  color: w === 'AI' ? COLORS.accent : COLORS.ink,
-                  textShadow: w === 'AI' ? `0 10px 44px ${hexA(COLORS.accent, 0.5)}` : '0 10px 40px rgba(0,0,0,.5)',
-                }}
-              >
-                {w}
-              </span>
-            );
-          })}
+        <div style={{opacity: wordO, transform: `translateY(${interpolate(wordP, [0, 1], [90, 0])}px)`}}>
+          <BrandLockup lang={lang} big={120} />
         </div>
       </AbsoluteFill>
       <AbsoluteFill style={{backgroundColor: COLORS.accent, opacity: flash, mixBlendMode: 'screen'}} />
@@ -84,25 +118,12 @@ export const ColdOpen: React.FC<{dur: number}> = ({dur}) => {
   );
 };
 
-// helper used inside map (hooks must be stable → small wrapper)
-function useSpringAt(delay: number) {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  // inline spring to avoid import cycle quirks
-  return Math.min(
-    1,
-    Math.max(
-      0,
-      1 - Math.exp(-Math.max(0, frame - delay) / 8) * Math.cos(Math.max(0, frame - delay) / 9),
-    ),
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /* Scene 2 — The promise                                               */
 /* ------------------------------------------------------------------ */
-export const PromiseScene: React.FC<{dur: number}> = ({dur}) => {
+export const PromiseScene: React.FC<{dur: number; lang: Lang}> = ({dur, lang}) => {
   const frame = useCurrentFrame();
+  const t = STRINGS[lang];
   const op = envelope(frame, dur, 16, 16);
   const subO = interpolate(frame, [70, 100], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const subY = interpolate(frame, [70, 100], [24, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE_OUT});
@@ -110,46 +131,35 @@ export const PromiseScene: React.FC<{dur: number}> = ({dur}) => {
     <AbsoluteFill style={{opacity: op}}>
       <GlowBG hue={COLORS.accent} intensity={0.9} />
       <AbsoluteFill
-        style={{
-          justifyContent: 'center',
-          alignItems: 'center',
-          flexDirection: 'column',
-          fontFamily: FONT,
-          padding: '0 140px',
-          textAlign: 'center',
-        }}
+        style={{justifyContent: 'center', alignItems: 'center', flexDirection: 'column', fontFamily: ff(lang), padding: '0 140px', textAlign: 'center'}}
       >
         <div
           style={{
-            fontSize: 26,
-            letterSpacing: 10,
+            fontSize: 28,
+            letterSpacing: ls(lang, 10),
             fontWeight: 700,
             color: COLORS.muted,
-            textTransform: 'uppercase',
             marginBottom: 36,
             opacity: interpolate(frame, [4, 22], [0, 1], {extrapolateRight: 'clamp'}),
           }}
+          dir={t.dir}
         >
-          One&nbsp;idea&nbsp;→&nbsp;One&nbsp;studio
+          {t.promiseEyebrow}
         </div>
         <KineticWords
-          text="From idea to a published video — in minutes."
-          fontSize={104}
-          accentWord="minutes"
+          text={t.promiseHeadline}
+          fontSize={lang === 'ar' ? 96 : 104}
+          accentWord={t.promiseAccent}
           delay={10}
           stagger={5}
+          dir={t.dir}
+          fontFamily={ff(lang)}
         />
         <div
-          style={{
-            opacity: subO,
-            transform: `translateY(${subY}px)`,
-            marginTop: 40,
-            fontSize: 34,
-            fontWeight: 500,
-            color: COLORS.muted,
-          }}
+          dir={t.dir}
+          style={{opacity: subO, transform: `translateY(${subY}px)`, marginTop: 44, fontSize: 34, fontWeight: 500, color: COLORS.muted, maxWidth: 1300, lineHeight: 1.5}}
         >
-          Script, design, build, render — in one AI-native pipeline.
+          {t.promiseSub}
         </div>
       </AbsoluteFill>
       <Vignette />
@@ -161,108 +171,76 @@ export const PromiseScene: React.FC<{dur: number}> = ({dur}) => {
 /* ------------------------------------------------------------------ */
 /* Scene 3 — The 5-tool workflow                                       */
 /* ------------------------------------------------------------------ */
-
-const TOOLS = [
-  {n: '01', title: 'Script & Ideas', desc: 'Describe a concept. The AI drafts a tight, scroll-stopping script.', tag: 'script.md', color: COLORS.accent3, Visual: MVScript},
-  {n: '02', title: 'Design System', desc: 'A living DESIGN.md keeps every frame perfectly on brand.', tag: 'DESIGN.md', color: COLORS.accent2, Visual: MVDesign},
-  {n: '03', title: 'Image → Code', desc: 'Turn any screenshot or sketch into production-ready UI code.', tag: 'Stitch', color: COLORS.accent, Visual: MVImageToCode},
-  {n: '04', title: 'Motion & Render', desc: 'Motion, titles and transitions — rendered to MP4 in one click.', tag: 'Remotion', color: '#18B26B', Visual: MVRender},
-  {n: '05', title: 'Auto QA', desc: 'Automated browser checks catch every glitch before you ship.', tag: 'Playwright', color: COLORS.accent2, Visual: MVQA},
+const TOOL_META = [
+  {color: COLORS.accent3, Visual: MVScript},
+  {color: COLORS.accent2, Visual: MVDesign},
+  {color: COLORS.accent, Visual: MVImageToCode},
+  {color: '#18B26B', Visual: MVRender},
+  {color: COLORS.accent2, Visual: MVQA},
 ];
 
-export const ToolsScene: React.FC<{dur: number}> = ({dur}) => {
+export const ToolsScene: React.FC<{dur: number; lang: Lang}> = ({dur, lang}) => {
   const frame = useCurrentFrame();
+  const t = STRINGS[lang];
+  const rtl = isRtl(lang);
   const op = envelope(frame, dur, 16, 16);
-  const cardDur = dur / TOOLS.length;
-  const active = Math.min(TOOLS.length - 1, Math.floor(frame / cardDur));
+  const cardDur = dur / TOOL_META.length;
+  const active = Math.min(TOOL_META.length - 1, Math.floor(frame / cardDur));
 
   return (
     <AbsoluteFill style={{opacity: op}}>
-      <GlowBG hue={TOOLS[active].color} hue2={COLORS.accent2} intensity={0.7} />
+      <GlowBG hue={TOOL_META[active].color} hue2={COLORS.accent2} intensity={0.7} />
       {/* header */}
       <div
-        style={{
-          position: 'absolute',
-          top: 96,
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 22,
-          fontFamily: FONT,
-        }}
+        style={{position: 'absolute', top: 92, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 22, fontFamily: ff(lang)}}
       >
-        <span style={{fontSize: 24, letterSpacing: 8, fontWeight: 700, color: COLORS.muted, textTransform: 'uppercase'}}>
-          How&nbsp;it&nbsp;works
-        </span>
+        <span style={{fontSize: 26, letterSpacing: ls(lang, 8), fontWeight: 700, color: COLORS.muted}}>{t.howItWorks}</span>
         <div style={{display: 'flex', gap: 10}}>
-          {TOOLS.map((t, i) => (
-            <div
-              key={i}
-              style={{
-                width: i === active ? 34 : 10,
-                height: 10,
-                borderRadius: 6,
-                background: i === active ? t.color : 'rgba(255,255,255,0.18)',
-                transition: 'none',
-              }}
-            />
+          {TOOL_META.map((m, i) => (
+            <div key={i} style={{width: i === active ? 34 : 10, height: 10, borderRadius: 6, background: i === active ? m.color : 'rgba(255,255,255,0.18)'}} />
           ))}
         </div>
       </div>
 
-      {TOOLS.map((t, i) => {
+      {TOOL_META.map((m, i) => {
+        const tool = t.tools[i];
         const start = i * cardDur;
         const f = frame - start;
         if (f < -10 || f > cardDur + 10) return null;
-        const inX = interpolate(f, [0, 16], [140, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE_OUT});
-        const outX = interpolate(f, [cardDur - 14, cardDur], [0, -140], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        const inX = interpolate(f, [0, 16], [rtl ? -140 : 140, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE_OUT});
+        const outX = interpolate(f, [cardDur - 14, cardDur], [0, rtl ? 140 : -140], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
         const o = interpolate(f, [0, 14, cardDur - 12, cardDur], [0, 1, 1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-        const Visual = t.Visual;
+        const Visual = m.Visual;
+        const num = String(i + 1).padStart(2, '0');
         return (
-          <AbsoluteFill
-            key={i}
-            style={{
-              justifyContent: 'center',
-              alignItems: 'center',
-              opacity: o,
-              transform: `translateX(${inX + outX}px)`,
-            }}
-          >
-            <div style={{display: 'flex', alignItems: 'center', gap: 80, width: 1540, fontFamily: FONT}}>
-              {/* left text */}
-              <div style={{width: 560}}>
-                <div style={{fontSize: 120, fontWeight: 800, color: hexA(t.color, 0.9), letterSpacing: -4, lineHeight: 1}}>
-                  {t.n}
+          <AbsoluteFill key={i} style={{justifyContent: 'center', alignItems: 'center', opacity: o, transform: `translateX(${inX + outX}px)`}}>
+            <div style={{display: 'flex', flexDirection: rtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 80, width: 1540, fontFamily: ff(lang)}}>
+              {/* text column */}
+              <div style={{width: 560, textAlign: rtl ? 'right' : 'left'}} dir={t.dir}>
+                <div style={{fontSize: 120, fontWeight: 800, color: hexA(m.color, 0.9), letterSpacing: -4, lineHeight: 1, direction: 'ltr', textAlign: rtl ? 'right' : 'left'}}>
+                  {num}
                 </div>
-                <div style={{fontSize: 60, fontWeight: 800, color: COLORS.ink, letterSpacing: -1.5, marginTop: 8}}>
-                  {t.title}
+                <div style={{fontSize: 58, fontWeight: 800, color: COLORS.ink, letterSpacing: ls(lang, -1.5), marginTop: 8, lineHeight: 1.2}}>
+                  {tool.title}
                 </div>
-                <div style={{fontSize: 30, fontWeight: 500, color: COLORS.muted, marginTop: 22, lineHeight: 1.4}}>
-                  {t.desc}
+                <div style={{fontSize: 30, fontWeight: 500, color: COLORS.muted, marginTop: 22, lineHeight: 1.5}}>
+                  {tool.desc}
                 </div>
                 <div
+                  dir="ltr"
                   style={{
-                    marginTop: 30,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 18px',
-                    borderRadius: 999,
-                    border: `1px solid ${hexA(t.color, 0.5)}`,
-                    background: hexA(t.color, 0.1),
-                    fontFamily: MONO,
-                    fontSize: 24,
-                    color: COLORS.ink,
+                    marginTop: 30, display: 'inline-flex', alignItems: 'center', gap: 10, padding: '10px 18px',
+                    borderRadius: 999, border: `1px solid ${hexA(m.color, 0.5)}`, background: hexA(m.color, 0.1),
+                    fontFamily: MONO, fontSize: 24, color: COLORS.ink,
                   }}
                 >
-                  <span style={{width: 10, height: 10, borderRadius: 999, background: t.color}} />
-                  {t.tag}
+                  <span style={{width: 10, height: 10, borderRadius: 999, background: m.color}} />
+                  {tool.tag}
                 </div>
               </div>
-              {/* right visual panel */}
-              <Panel accent={t.color}>
-                <Visual f={f} color={t.color} />
+              {/* visual panel */}
+              <Panel accent={m.color}>
+                <Visual f={f} color={m.color} lang={lang} />
               </Panel>
             </div>
           </AbsoluteFill>
@@ -277,34 +255,29 @@ export const ToolsScene: React.FC<{dur: number}> = ({dur}) => {
 const Panel: React.FC<{accent: string; children: React.ReactNode}> = ({accent, children}) => (
   <div
     style={{
-      width: 760,
-      height: 460,
-      borderRadius: 24,
+      width: 760, height: 460, borderRadius: 24,
       background: `linear-gradient(160deg, ${COLORS.panel2}, ${COLORS.panel})`,
       border: `1px solid ${COLORS.border}`,
       boxShadow: `0 40px 120px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px ${hexA(accent, 0.06)}`,
-      overflow: 'hidden',
-      position: 'relative',
-      padding: 36,
+      overflow: 'hidden', position: 'relative', padding: 36,
     }}
   >
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        background: `radial-gradient(60% 40% at 80% 0%, ${hexA(accent, 0.14)}, transparent 70%)`,
-      }}
-    />
-    <div style={{position: 'relative', height: '100%'}}>{children}</div>
+    <div style={{position: 'absolute', inset: 0, background: `radial-gradient(60% 40% at 80% 0%, ${hexA(accent, 0.14)}, transparent 70%)`}} />
+    <div style={{position: 'relative', height: '100%'}} dir="ltr">
+      {children}
+    </div>
   </div>
 );
 
-/* ---- mini visuals ---- */
-function MVScript({f, color}: {f: number; color: string}) {
+/* ---- mini visuals (panels stay LTR; only human labels localize) ---- */
+function MVScript({f, color, lang}: {f: number; color: string; lang: Lang}) {
   const widths = [92, 78, 85, 60, 70];
+  const t = STRINGS[lang];
   return (
-    <div style={{height: '100%', display: 'flex', flexDirection: 'column', gap: 20, justifyContent: 'center', fontFamily: MONO}}>
-      <div style={{fontSize: 22, color: COLORS.dim, marginBottom: 6}}>// ai is writing…</div>
+    <div style={{height: '100%', display: 'flex', flexDirection: 'column', gap: 20, justifyContent: 'center'}}>
+      <div dir={t.dir} style={{fontFamily: ff(lang), fontSize: 22, color: COLORS.dim, marginBottom: 6, textAlign: isRtl(lang) ? 'right' : 'left'}}>
+        {t.mvWriting}
+      </div>
       {widths.map((w, i) => {
         const grow = interpolate(f, [18 + i * 14, 40 + i * 14], [0, w], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
         const last = i === widths.length - 1;
@@ -320,10 +293,11 @@ function MVScript({f, color}: {f: number; color: string}) {
   );
 }
 
-function MVDesign({f, color}: {f: number; color: string}) {
+function MVDesign({f, color, lang}: {f: number; color: string; lang: Lang}) {
   const sw = [COLORS.accent, COLORS.accent2, COLORS.accent3, '#18B26B', COLORS.ink];
+  const t = STRINGS[lang];
   return (
-    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 34, fontFamily: FONT}}>
+    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 34}}>
       <div style={{display: 'flex', gap: 16}}>
         {sw.map((c, i) => {
           const p = interpolate(f, [10 + i * 7, 26 + i * 7], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
@@ -331,18 +305,18 @@ function MVDesign({f, color}: {f: number; color: string}) {
         })}
       </div>
       <div style={{display: 'flex', alignItems: 'baseline', gap: 20, opacity: interpolate(f, [40, 58], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
-        <span style={{fontSize: 120, fontWeight: 800, color: COLORS.ink, letterSpacing: -4}}>Aa</span>
+        <span style={{fontSize: 120, fontWeight: 800, color: COLORS.ink, letterSpacing: -4, fontFamily: FONT}}>Aa</span>
         <div style={{fontFamily: MONO, fontSize: 22, color: COLORS.muted, lineHeight: 1.6}}>
           <div>Display / 800</div>
           <div>Body / 500</div>
-          <div style={{color}}>tokens · on-brand</div>
+          <div style={{color, fontFamily: ff(lang)}}>{t.mvTokens}</div>
         </div>
       </div>
     </div>
   );
 }
 
-function MVImageToCode({f, color}: {f: number; color: string}) {
+function MVImageToCode({f, color}: {f: number; color: string; lang: Lang}) {
   const arrow = 0.5 + 0.5 * Math.sin(f / 6);
   const tokens = [
     [color, 46], ['#3C6EFF', 30], [COLORS.ink, 60],
@@ -369,13 +343,14 @@ function MVImageToCode({f, color}: {f: number; color: string}) {
   );
 }
 
-function MVRender({f, color}: {f: number; color: string}) {
+function MVRender({f, color, lang}: {f: number; color: string; lang: Lang}) {
   const clips = [COLORS.accent, COLORS.accent2, COLORS.accent3];
   const playhead = interpolate(f, [10, 90], [0, 100], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const prog = interpolate(f, [30, 100], [0, 100], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const done = prog >= 100;
+  const t = STRINGS[lang];
   return (
-    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 30, fontFamily: MONO}}>
+    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 30}}>
       <div style={{position: 'relative', height: 120, display: 'flex', flexDirection: 'column', gap: 12}}>
         {[0, 1].map((row) => (
           <div key={row} style={{display: 'flex', gap: 10, height: 52}}>
@@ -387,9 +362,9 @@ function MVRender({f, color}: {f: number; color: string}) {
         <div style={{position: 'absolute', top: -6, bottom: -6, left: `${playhead}%`, width: 3, background: COLORS.ink, boxShadow: '0 0 12px rgba(255,255,255,0.8)'}} />
       </div>
       <div>
-        <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 22, color: COLORS.muted, marginBottom: 10}}>
-          <span>{done ? 'render complete' : 'rendering…'}</span>
-          <span style={{color: done ? '#18B26B' : color}}>{done ? 'studio.mp4 ✓' : `${Math.round(prog)}%`}</span>
+        <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 22, color: COLORS.muted, marginBottom: 10, fontFamily: ff(lang)}}>
+          <span>{done ? t.mvRenderDone : t.mvRendering}</span>
+          <span style={{color: done ? '#18B26B' : color, fontFamily: MONO}}>{done ? 'studio.mp4 ✓' : `${Math.round(prog)}%`}</span>
         </div>
         <div style={{height: 16, borderRadius: 10, background: 'rgba(255,255,255,0.1)', overflow: 'hidden'}}>
           <div style={{height: '100%', width: `${prog}%`, borderRadius: 10, background: done ? '#18B26B' : `linear-gradient(90deg, ${color}, ${COLORS.accent3})`}} />
@@ -399,24 +374,25 @@ function MVRender({f, color}: {f: number; color: string}) {
   );
 }
 
-function MVQA({f, color}: {f: number; color: string}) {
-  const checks = ['Accessibility · AA', 'Keyboard & focus', 'No layout shift', 'Links & forms OK'];
+function MVQA({f, color, lang}: {f: number; color: string; lang: Lang}) {
+  const t = STRINGS[lang];
+  const rtl = isRtl(lang);
   return (
-    <div style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 18, fontFamily: FONT}}>
-      {checks.map((c, i) => {
+    <div dir={t.dir} style={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 18, fontFamily: ff(lang)}}>
+      {t.mvChecks.map((c, i) => {
         const on = f > 20 + i * 16;
         const p = interpolate(f, [20 + i * 16, 34 + i * 16], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
         return (
-          <div key={i} style={{display: 'flex', alignItems: 'center', gap: 18, opacity: 0.3 + p * 0.7}}>
+          <div key={i} style={{display: 'flex', flexDirection: rtl ? 'row-reverse' : 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 18, opacity: 0.3 + p * 0.7}}>
             <div style={{width: 40, height: 40, borderRadius: 10, background: on ? '#18B26B' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', transform: `scale(${0.8 + p * 0.2})`, boxShadow: on ? '0 8px 24px rgba(24,178,107,0.4)' : 'none'}}>
               <span style={{color: COLORS.ink, fontSize: 24, fontWeight: 800}}>✓</span>
             </div>
-            <span style={{fontSize: 30, fontWeight: 600, color: on ? COLORS.ink : COLORS.muted}}>{c}</span>
+            <span style={{fontSize: 30, fontWeight: 600, color: on ? COLORS.ink : COLORS.muted, flex: 1, textAlign: rtl ? 'right' : 'left'}}>{c}</span>
           </div>
         );
       })}
-      <div style={{marginTop: 10, fontFamily: MONO, fontSize: 22, color: f > 95 ? '#18B26B' : COLORS.dim}}>
-        {f > 95 ? '→ all checks passed' : '→ running…'}
+      <div style={{marginTop: 10, fontSize: 22, color: f > 95 ? '#18B26B' : COLORS.dim, textAlign: rtl ? 'right' : 'left'}}>
+        {f > 95 ? t.mvPassed : t.mvRunning}
       </div>
     </div>
   );
@@ -425,52 +401,51 @@ function MVQA({f, color}: {f: number; color: string}) {
 /* ------------------------------------------------------------------ */
 /* Scene 4 — Stats                                                     */
 /* ------------------------------------------------------------------ */
-const STATS = [
-  {value: 10, suffix: '×', label: 'faster to publish', color: COLORS.accent},
-  {value: 60, suffix: 's', label: 'idea → rendered video', color: COLORS.accent2},
-  {value: 100, suffix: '%', label: 'on-brand frames', color: COLORS.accent3},
-  {value: 1, prefix: '', suffix: '-click', label: 'export to MP4', color: '#18B26B'},
-];
+const STAT_COLORS = [COLORS.accent, COLORS.accent2, COLORS.accent3, '#18B26B'];
 
-export const StatsScene: React.FC<{dur: number}> = ({dur}) => {
+export const StatsScene: React.FC<{dur: number; lang: Lang}> = ({dur, lang}) => {
   const frame = useCurrentFrame();
+  const t = STRINGS[lang];
+  const rtl = isRtl(lang);
   const op = envelope(frame, dur, 16, 18);
   return (
     <AbsoluteFill style={{opacity: op}}>
       <GlowBG hue={COLORS.accent2} hue2={COLORS.accent} intensity={0.75} />
-      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', flexDirection: 'column', fontFamily: FONT}}>
+      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', flexDirection: 'column', fontFamily: ff(lang)}}>
         <div
-          style={{
-            fontSize: 26, letterSpacing: 9, fontWeight: 700, color: COLORS.muted, textTransform: 'uppercase', marginBottom: 56,
-            opacity: interpolate(frame, [6, 24], [0, 1], {extrapolateRight: 'clamp'}),
-          }}
+          dir={t.dir}
+          style={{fontSize: 28, letterSpacing: ls(lang, 9), fontWeight: 700, color: COLORS.muted, marginBottom: 56, opacity: interpolate(frame, [6, 24], [0, 1], {extrapolateRight: 'clamp'})}}
         >
-          Built&nbsp;for&nbsp;speed
+          {t.builtForSpeed}
         </div>
-        <div style={{display: 'flex', gap: 34}}>
-          {STATS.map((s, i) => {
+        <div style={{display: 'flex', flexDirection: rtl ? 'row-reverse' : 'row', gap: 34}}>
+          {t.stats.map((s, i) => {
             const d = 14 + i * 9;
             const p = interpolate(frame, [d, d + 24], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE_OUT});
-            const count = Math.round(interpolate(frame, [d, d + 40], [0, s.value], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
+            const target = parseInt(s.display, 10);
+            const count = Math.round(interpolate(frame, [d, d + 40], [0, target], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}));
+            const color = STAT_COLORS[i];
             return (
               <div
                 key={i}
+                dir={t.dir}
                 style={{
                   width: 380, padding: '44px 34px', borderRadius: 24,
                   background: `linear-gradient(160deg, ${COLORS.panel2}, ${COLORS.panel})`,
                   border: `1px solid ${COLORS.border}`,
-                  boxShadow: `0 30px 90px rgba(0,0,0,0.5), 0 0 0 1px ${hexA(s.color, 0.08)}`,
+                  boxShadow: `0 30px 90px rgba(0,0,0,0.5), 0 0 0 1px ${hexA(color, 0.08)}`,
                   transform: `translateY(${interpolate(p, [0, 1], [50, 0])}px) scale(${interpolate(p, [0, 1], [0.92, 1])})`,
                   opacity: p,
+                  textAlign: rtl ? 'right' : 'left',
                 }}
               >
-                <div style={{fontSize: 112, fontWeight: 800, letterSpacing: -4, color: s.color, lineHeight: 1}}>
-                  {s.prefix ?? ''}{count}
-                  <span style={{fontSize: 64}}>{s.suffix}</span>
+                <div dir="ltr" style={{fontSize: 108, fontWeight: 800, letterSpacing: -4, color, lineHeight: 1, textAlign: rtl ? 'right' : 'left', fontFamily: ff(lang)}}>
+                  {count}
+                  <span style={{fontSize: 56}}>{s.suffix}</span>
                 </div>
-                <div style={{marginTop: 18, fontSize: 28, fontWeight: 500, color: COLORS.muted}}>{s.label}</div>
+                <div style={{marginTop: 18, fontSize: 27, fontWeight: 500, color: COLORS.muted, lineHeight: 1.4}}>{s.label}</div>
                 <div style={{marginTop: 22, height: 8, borderRadius: 6, background: 'rgba(255,255,255,0.08)', overflow: 'hidden'}}>
-                  <div style={{height: '100%', width: `${p * 100}%`, background: s.color, borderRadius: 6}} />
+                  <div style={{height: '100%', width: `${p * 100}%`, background: color, borderRadius: 6, float: rtl ? 'right' : 'left'}} />
                 </div>
               </div>
             );
@@ -486,28 +461,25 @@ export const StatsScene: React.FC<{dur: number}> = ({dur}) => {
 /* ------------------------------------------------------------------ */
 /* Scene 5 — CTA / outro                                               */
 /* ------------------------------------------------------------------ */
-const STEPS = ['Script.', 'Design.', 'Build.', 'Render.', 'Ship.'];
-
-export const Outro: React.FC<{dur: number}> = ({dur}) => {
+export const Outro: React.FC<{dur: number; lang: Lang}> = ({dur, lang}) => {
   const frame = useCurrentFrame();
+  const t = STRINGS[lang];
   const op = envelope(frame, dur, 14, 2);
 
-  // Phase 1: flashing steps (0 - 110). Phase 2: lockup (110 - end).
   const stepIdx = Math.floor(frame / 20);
   const lockIn = interpolate(frame, [116, 140], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE_OUT});
   const glyphP = interpolate(frame, [120, 150], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE_OUT});
   const ctaP = interpolate(frame, [168, 192], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE_OUT});
   const pulse = 0.5 + 0.5 * Math.sin(frame / 7);
-
   const showSteps = frame < 112;
 
   return (
     <AbsoluteFill style={{opacity: op}}>
       <GlowBG hue={COLORS.accent} intensity={1.0} />
-      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', flexDirection: 'column', fontFamily: FONT}}>
+      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', flexDirection: 'column', fontFamily: ff(lang)}}>
         {showSteps ? (
-          <div style={{display: 'flex', gap: 30, fontSize: 92, fontWeight: 800, letterSpacing: -2}}>
-            {STEPS.map((s, i) => {
+          <div dir={t.dir} style={{display: 'flex', flexDirection: isRtl(lang) ? 'row-reverse' : 'row', gap: 30, fontSize: 92, fontWeight: 800, letterSpacing: ls(lang, -2)}}>
+            {t.steps.map((s, i) => {
               const shown = i <= stepIdx;
               const isCurrent = i === stepIdx;
               return (
@@ -530,32 +502,22 @@ export const Outro: React.FC<{dur: number}> = ({dur}) => {
             <div style={{transform: `scale(${interpolate(glyphP, [0, 1], [0.6, 1])})`, marginBottom: 34, filter: 'drop-shadow(0 18px 55px rgba(255,46,76,0.45))'}}>
               <PlayGlyph size={104} />
             </div>
-            <div style={{fontSize: 108, fontWeight: 800, letterSpacing: -2, display: 'flex', gap: 22}}>
-              <span style={{color: COLORS.ink}}>YouTube</span>
-              <span style={{color: COLORS.accent, textShadow: `0 10px 44px ${hexA(COLORS.accent, 0.5)}`}}>AI</span>
-              <span style={{color: COLORS.ink}}>Studio</span>
-            </div>
-            <div style={{marginTop: 24, fontSize: 32, fontWeight: 500, letterSpacing: 2, color: COLORS.muted}}>
-              Create&nbsp;·&nbsp;Edit&nbsp;·&nbsp;Publish
+            <BrandLockup lang={lang} big={100} />
+            <div dir={t.dir} style={{marginTop: 24, fontSize: 32, fontWeight: 500, letterSpacing: ls(lang, 2), color: COLORS.muted}}>
+              {t.createEditPublish}
             </div>
             <div
+              dir={t.dir}
               style={{
-                marginTop: 46,
-                opacity: ctaP,
-                transform: `translateY(${interpolate(ctaP, [0, 1], [20, 0])}px)`,
-                padding: '20px 46px',
-                borderRadius: 999,
-                background: COLORS.accent,
-                color: COLORS.ink,
-                fontSize: 32,
-                fontWeight: 700,
+                marginTop: 46, opacity: ctaP, transform: `translateY(${interpolate(ctaP, [0, 1], [20, 0])}px)`,
+                padding: '20px 46px', borderRadius: 999, background: COLORS.accent, color: COLORS.ink, fontSize: 32, fontWeight: 700,
                 boxShadow: `0 20px 60px ${hexA(COLORS.accent, 0.35 + pulse * 0.25)}`,
               }}
             >
-              Start building today →
+              {t.cta}
             </div>
-            <div style={{marginTop: 30, fontFamily: MONO, fontSize: 24, color: COLORS.dim, opacity: ctaP}}>
-              github.com / youtube-ai-studio
+            <div dir="ltr" style={{marginTop: 30, fontFamily: MONO, fontSize: 24, color: COLORS.dim, opacity: ctaP}}>
+              {t.repo}
             </div>
           </div>
         )}

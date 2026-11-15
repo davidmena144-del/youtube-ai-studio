@@ -138,6 +138,8 @@ export const KineticWords: React.FC<{
   accentColor?: string;
   letterSpacing?: number;
   gap?: number;
+  dir?: 'ltr' | 'rtl';
+  fontFamily?: string;
 }> = ({
   text,
   delay = 0,
@@ -149,21 +151,25 @@ export const KineticWords: React.FC<{
   accentColor = COLORS.accent,
   letterSpacing = -1.5,
   gap = 0.28,
+  dir = 'ltr',
+  fontFamily,
 }) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const words = text.split(' ');
   return (
     <div
+      dir={dir}
       style={{
         display: 'flex',
         flexWrap: 'wrap',
         justifyContent: 'center',
         gap: `0 ${gap * fontSize}px`,
         fontSize,
+        fontFamily,
         fontWeight: weight,
-        letterSpacing,
-        lineHeight: 1.04,
+        letterSpacing: dir === 'rtl' ? 0 : letterSpacing,
+        lineHeight: 1.18,
         maxWidth: 1500,
       }}
     >
