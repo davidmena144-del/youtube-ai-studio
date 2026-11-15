@@ -72,6 +72,19 @@ describe("YouTube publisher (against a fake Google API)", () => {
     expect(fake.state.videos[0].resource.status).toMatchObject({ privacyStatus: "public" });
   });
 
+  it("private_only policy: uploads stay private with no publishAt even when a slot time exists (never goes public)", async () => {
+    await setPolicy(channelId, { publish_mode: "private_only" });
+    const p = await producedProject();
+    const r = await publishProject({ projectId: p.id, channelId, outDir, seo, publishAt: new Date(Date.now() + 24 * 3600_000), yt: yt() });
+    expect(r.status).toBe("private");
+    const st = fake.state.videos[0].resource.status;
+    expect(st).toMatchObject({ privacyStatus: "private", containsSyntheticMedia: true });
+    expect(st.publishAt).toBeUndefined();
+    const p2 = await producedProject();
+    await publishProject({ projectId: p2.id, channelId, outDir, seo, publishAt: null, yt: yt() }).catch(() => {}); // cadence may refuse; must never be public
+    expect(fake.state.videos.every((v) => v.resource.status.privacyStatus === "private")).toBe(true);
+  });
+
   it("an interrupted upload resumes from the stored session on the next run (no second upload)", async () => {
     const p = await producedProject();
     fake.state.failChunkOnce = false;
