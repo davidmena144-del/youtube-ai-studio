@@ -1,9 +1,9 @@
 {
-  "_doc": "engines: which engines this run synthesises. reuse_run_id: an earlier TTS-eval run whose WAV artifacts (kept 3 days) supply every engine not re-run here, to save free Actions minutes. Use an empty string for a full fresh run.",
+  "_doc": "engines: which engines this run synthesises. reuse_run_id: an earlier TTS-eval run whose WAV artifacts (kept 3 days) supply every engine not re-run here, to save free Actions minutes. Use an empty string for a full fresh run. only: comma-separated passage ids to synthesise (empty = all).",
   "engines": [
     "silma",
-    "silma_fast",
-    "piper"
+    "chatterbox"
   ],
-  "reuse_run_id": "43731704552"
+  "reuse_run_id": "",
+  "only": "p13_egyptian,p14_emotion_excited,p15_emotion_sad,p16_pauses,p17_egyptian_explainer,p18_emotion_suspense"
 }

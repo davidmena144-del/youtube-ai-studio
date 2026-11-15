@@ -8,6 +8,8 @@ Objective metrics (no human needed):
     differ from their written digits/letters.
   * audio QA (ffmpeg): integrated loudness (LUFS), true peak, clipped-sample ratio, long pauses.
   * speed: RTF and the projected time to narrate 8 minutes on this runner.
+  * prosody (numpy): median pitch, pitch range (semitones, p10–p90) and speaking rate per sample, so
+    emotion passages can be compared objectively (excited vs sad vs suspense) besides listening.
 Subjective: a blind set (engines renamed A, B, C…, loudness-matched to -16 LUFS) for the owner.
 """
 from __future__ import annotations
@@ -23,7 +25,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import load_passages, normalize_for_cer  # noqa: E402
 
-BLIND_SAMPLES = ["p02_numbers", "p08_prosody", "p11_short_script", "p13_egyptian", "p14_emotion_excited"]
+BLIND_SAMPLES = ["p02_numbers", "p08_prosody", "p11_short_script", "p13_egyptian", "p14_emotion_excited",
+                 "p15_emotion_sad", "p17_egyptian_explainer", "p18_emotion_suspense"]
 TEXT_ONLY_TAGS = {"numbers", "latin-script", "loanwords", "dialect"}  # excluded from the headline CER
 GATE_RTF = 1.5
 GATE_CER = 0.15  # informational: owner's listening score is the real quality gate
@@ -57,6 +60,43 @@ def ffmpeg_qa(wav: Path) -> dict:
         "true_peak_dbfs": float(peak[-1]) if peak else None,
         "long_pauses": len(re.findall(r"silence_end", log)),
     }
+
+
+ARABIC_LETTER = re.compile(r"[\u0621-\u064A]")
+
+
+def prosody(wav: Path, text: str) -> dict:
+    """Pitch statistics with an FFT autocorrelation tracker (40 ms frames, 10 ms hop, 70–400 Hz)."""
+    import numpy as np
+    import soundfile as sf
+
+    x, sr = sf.read(str(wav), dtype="float32", always_2d=False)
+    if x.ndim > 1:
+        x = x.mean(axis=1)
+    dur = len(x) / sr
+    fl, hop = int(0.04 * sr), int(0.01 * sr)
+    lo, hi = int(sr / 400), int(sr / 70)
+    ref = float(np.sqrt(np.mean(x**2))) + 1e-9
+    f0 = []
+    for i in range(0, max(0, len(x) - fl), hop):
+        fr = x[i : i + fl] - x[i : i + fl].mean()
+        if float(np.sqrt(np.mean(fr**2))) < 0.3 * ref:
+            continue
+        spec = np.fft.rfft(fr, 2 * fl)
+        ac = np.fft.irfft(np.abs(spec) ** 2)[:fl]
+        if ac[0] <= 0:
+            continue
+        ac = ac / ac[0]
+        lag = lo + int(np.argmax(ac[lo:hi]))
+        if ac[lag] > 0.45:
+            f0.append(sr / lag)
+    letters = len(ARABIC_LETTER.findall(text))
+    out = {"letters_per_s": round(letters / dur, 2) if dur else None, "voiced_frames": len(f0)}
+    if len(f0) >= 10:
+        a = np.array(f0)
+        p10, p50, p90 = np.percentile(a, [10, 50, 90])
+        out.update({"f0_median_hz": round(float(p50), 1), "f0_range_st": round(float(12 * np.log2(p90 / p10)), 2)})
+    return out
 
 
 def clipped_ratio(wav: Path) -> float:
@@ -113,7 +153,9 @@ def main() -> int:
                 s["cer"] = cer(passages[s["sample_id"]]["text"], s["asr_text"])
             s.update(ffmpeg_qa(wav))
             s["clipped_ratio"] = clipped_ratio(wav)
-            print(f"[score] {r['engine']} {s['sample_id']}: cer={s.get('cer')} lufs={s['lufs']} pauses={s['long_pauses']}", flush=True)
+            s.update(prosody(wav, passages[s["sample_id"]]["text"]))
+            print(f"[score] {r['engine']} {s['sample_id']}: cer={s.get('cer')} lufs={s['lufs']} pauses={s['long_pauses']} "
+                  f"f0={s.get('f0_median_hz')} range={s.get('f0_range_st')} rate={s.get('letters_per_s')}", flush=True)
 
         ok = [s for s in r["samples"] if s["ok"]]
         text_only = [s.get("cer") for s in ok if not (set(passages[s["sample_id"]]["tags"]) & TEXT_ONLY_TAGS)]
@@ -158,14 +200,36 @@ def summary_md(results: list[dict]) -> str:
             f"{r['projected_8min_narration_min']} min | {r['peak_ram_mb']} | {r['failures']} | {r['cer_text_only']} | {r['cer_all']} | "
             f"{'PASS' if all(g.values()) else 'fail: ' + ','.join(k for k, v in g.items() if not v)} |"
         )
-    detail = ["", "| engine | sample | ok | RTF | audio s | CER | LUFS | true peak | pauses>1.2s | clipped | error |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+    detail = ["", "| engine | sample | ok | RTF | audio s | CER | LUFS | true peak | pauses>1.2s | clipped | F0 median Hz | F0 range st | letters/s | error |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in results:
         for s in r["samples"]:
             detail.append(
                 f"| {r['engine']} | {s['sample_id']} | {s['ok']} | {s['rtf']} | {s['duration_s']} | {s.get('cer')} | {s.get('lufs')} | "
-                f"{s.get('true_peak_dbfs')} | {s.get('long_pauses')} | {s.get('clipped_ratio')} | {(s.get('error') or '')[:80]} |"
+                f"{s.get('true_peak_dbfs')} | {s.get('long_pauses')} | {s.get('clipped_ratio')} | {s.get('f0_median_hz')} | "
+                f"{s.get('f0_range_st')} | {s.get('letters_per_s')} | {(s.get('error') or '')[:80]} |"
             )
-    return "\n".join(["## Arabic TTS benchmark", "", *rows, *detail, ""])
+    return "\n".join(["## Arabic TTS benchmark", "", *rows, *detail, *expressiveness(results), ""])
+
+
+def expressiveness(results: list[dict]) -> list[str]:
+    """Dialect CER and emotion contrast: an expressive engine changes pitch/rate between moods."""
+    def by_id(r):
+        return {s["sample_id"]: s for s in r["samples"] if s["ok"]}
+
+    out = ["", "### Dialect and emotion", "",
+           "| engine | CER Egyptian (mean) | excited − sad: F0 (st) | excited − sad: rate | F0 range excited / sad / suspense (st) |",
+           "|---|---|---|---|---|"]
+    for r in results:
+        m = by_id(r)
+        eg = [m[k]["cer"] for k in ("p13_egyptian", "p17_egyptian_explainer") if k in m and m[k].get("cer") is not None]
+        ex, sad, sus = m.get("p14_emotion_excited", {}), m.get("p15_emotion_sad", {}), m.get("p18_emotion_suspense", {})
+        df0 = (round(12 * __import__("math").log2(ex["f0_median_hz"] / sad["f0_median_hz"]), 2)
+               if ex.get("f0_median_hz") and sad.get("f0_median_hz") else None)
+        drate = round(ex["letters_per_s"] - sad["letters_per_s"], 2) if ex.get("letters_per_s") and sad.get("letters_per_s") else None
+        out.append(f"| {r['engine']} | {round(sum(eg) / len(eg), 3) if eg else None} | {df0} | {drate} | "
+                   f"{ex.get('f0_range_st')} / {sad.get('f0_range_st')} / {sus.get('f0_range_st')} |")
+    return out
 
 
 if __name__ == "__main__":

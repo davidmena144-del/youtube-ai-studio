@@ -30,13 +30,14 @@ jobs:
     outputs:
       engines: ${{ steps.cfg.outputs.engines }}
       reuse_run_id: ${{ steps.cfg.outputs.reuse_run_id }}
+      only: ${{ steps.cfg.outputs.only }}
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - id: cfg
         run: |
-          python3 -c "import json;c=json.load(open('media/tts-eval/run-config.json'));print('engines='+json.dumps(c['engines']));print('reuse_run_id='+str(c.get('reuse_run_id','')))" >> "$GITHUB_OUTPUT"
+          python3 -c "import json;c=json.load(open('media/tts-eval/run-config.json'));print('engines='+json.dumps(c['engines']));print('reuse_run_id='+str(c.get('reuse_run_id','')));print('only='+str(c.get('only','')))" >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   synth:
@@ -85,7 +86,7 @@ jobs:
         run: |
           . .venv/bin/activate
           cd media/tts-eval
-          python run.py --engine ${{ matrix.engine }} --out ../../out/${{ matrix.engine }} --threads 2 --time-budget 2700
+          python run.py --engine ${{ matrix.engine }} --out ../../out/${{ matrix.engine }} --threads 2 --time-budget 2700 --only "${{ needs.plan.outputs.only }}"
 
       - name: Engine result
         if: always()
