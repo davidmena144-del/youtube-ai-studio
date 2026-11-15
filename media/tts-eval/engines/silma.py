@@ -23,10 +23,22 @@ def version() -> str:
     return importlib.metadata.version("silma-tts")
 
 
-def load(threads: int):
+def _soundfile_load(path, *_args, **_kwargs):
+    """torchaudio.load replacement: newer torchaudio routes through torchcodec, whose native
+    library failed to load on the GitHub runner. SILMA only reads its reference clip with it."""
+    import soundfile as sf
     import torch
 
+    data, sr = sf.read(str(path), dtype="float32", always_2d=True)
+    return torch.from_numpy(data.T.copy()), sr
+
+
+def load(threads: int):
+    import torch
+    import torchaudio
+
     torch.set_num_threads(threads)
+    torchaudio.load = _soundfile_load
     from silma_tts.api import SilmaTTS
 
     return SilmaTTS(device="cpu")

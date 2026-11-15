@@ -21,16 +21,32 @@ permissions:
 
 concurrency:
   group: tts-eval-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false # queue: a new push waits, so a long run is never wasted
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      engines: ${{ steps.cfg.outputs.engines }}
+      reuse_run_id: ${{ steps.cfg.outputs.reuse_run_id }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - id: cfg
+        run: |
+          python3 -c "import json;c=json.load(open('media/tts-eval/run-config.json'));print('engines='+json.dumps(c['engines']));print('reuse_run_id='+str(c.get('reuse_run_id','')))" >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
   synth:
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        engine: [silma, chatterbox, piper, espeak]
+        engine: ${{ fromJSON(needs.plan.outputs.engines) }}
     env:
       TTS_CACHE: /tmp/tts-cache # (the runner context is not available in job-level env)
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
@@ -84,10 +100,13 @@ jobs:
           if-no-files-found: warn
 
   score:
-    needs: synth
+    needs: [plan, synth]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read # only to download WAV artifacts of the earlier run named in run-config.json
     steps:
       - uses: actions/checkout@v6
         with:
@@ -97,12 +116,25 @@ jobs:
           python-version: "3.11"
       - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
       - run: pip install -q faster-whisper==1.2.1 soundfile numpy
+      - name: Reused engines from an earlier run
+        if: needs.plan.outputs.reuse_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tts-wav-*
+          path: reused
+          run-id: ${{ needs.plan.outputs.reuse_run_id }}
+          github-token: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:
           pattern: tts-wav-*
-          path: out
-      - name: Flatten artifact folders
-        run: for d in out/tts-wav-*; do mv "$d" "out/${d#out/tts-wav-}"; done; ls out
+          path: fresh
+      - name: Merge (fresh results win over reused ones)
+        run: |
+          mkdir -p out
+          for src in reused fresh; do
+            [ -d "$src" ] || continue
+            for d in "$src"/tts-wav-*; do e="${d#$src/tts-wav-}"; rm -rf "out/$e"; mv "$d" "out/$e"; echo "$e <- $src"; done
+          done
       - name: Score (Whisper CER, loudness, pauses) + blind set
         run: python media/tts-eval/score.py --in out --report report --asr large-v3-turbo --threads 2
       - name: Job summary
