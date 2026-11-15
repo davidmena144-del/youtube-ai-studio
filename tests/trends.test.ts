@@ -60,6 +60,7 @@ describe("YouTube connector (Data API v3, public data)", () => {
     const r = await youtubeConnector().collect(await ctx(baseEnv({ YT_API_KEY: "", YT_REFRESH_TOKEN: "rt", YT_CLIENT_ID: "c", YT_CLIENT_SECRET: "s" })));
     expect(r.status).toBe("ok");
     expect(fake.calls.filter((c) => c.path.startsWith("/youtube/")).every((c) => c.auth === "Bearer at-yt" && !c.query.key)).toBe(true);
+    expect(fake.calls.every((c) => !JSON.stringify(c.query).includes("k-public"))).toBe(true);
     const none = await youtubeConnector().collect(await ctx(baseEnv({ YT_API_KEY: "", YT_REFRESH_TOKEN: "" })));
     expect(none.status).toBe("skipped");
     expect(isoDurationSeconds("PT1H2M3S")).toBe(3723);

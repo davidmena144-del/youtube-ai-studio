@@ -29,6 +29,7 @@ trap 'kill $EMU 2>/dev/null || true' EXIT
 for _ in $(seq 50); do curl -s -o /dev/null "http://127.0.0.1:4444" -d '{}' && break; sleep 0.1; done
 
 MGR="postgres://e2e_manager:e2e-manager-local-only@ep-local.neon.test/$DB"
+OWN=$(node -e 'const u=new URL(process.argv[1]);u.hostname="ep-local.neon.test";u.port="";console.log(u.toString())' "$OWNER_URL")
 WKR="postgres://e2e_worker:e2e-worker-local-only@ep-local.neon.test/$DB"
 export NODE_OPTIONS="--import ./tests/e2e/neon-preload.mjs"
 export DB_DRIVER=neon-http
@@ -40,18 +41,27 @@ studio() {
   [ "$got" = "$want" ] || fail "studio $* → exit $got (want $want): $OUT"
   ok "studio $* → $got"
 }
+# owner <expected exit> <args...>: onboarding / pause / resume are owner-only (manager role cannot change policy).
+owner() {
+  local want=$1; shift
+  set +e; OUT=$(DATABASE_URL=$OWN node --import tsx scripts/studio.ts "$@" 2>/dev/null); local got=$?; set -e
+  [ "$got" = "$want" ] || fail "owner studio $* → exit $got (want $want): $OUT"
+  ok "owner studio $* → $got"
+}
 sqlm() { curl -s -XPOST http://127.0.0.1:4444/sql -H "Neon-Connection-String: $1" -d "{\"query\":\"$2\",\"params\":[]}"; }
 
-studio 0 channel init --title "قناة اختبار" --tz Asia/Riyadh
-studio 0 policy set --json '{"max_shorts_per_week": 4}'
-studio 1 policy set --json '{"max_uploads_per_day": 99}'
+owner 0 channel init --title "قناة اختبار" --tz Asia/Riyadh
+owner 0 policy set --json '{"max_shorts_per_week": 4}'
+owner 1 policy set --json '{"max_uploads_per_day": 99}'
+studio 1 policy set --json '{"max_shorts_per_week": 9}'   # manager may not change policy
 studio 0 run start --owner mgr-1
 studio 2 run start --owner mgr-2
 studio 0 next
-studio 0 pause
+owner 0 pause
 studio 2 preflight
 echo "$OUT" | grep -q "kill switch" || fail "pause not seen by preflight"
-studio 0 resume
+studio 1 resume                                           # manager cannot undo the owner's pause
+owner 0 resume
 studio 0 idea add --title "أسرار النوم العميق" --format short
 studio 2 idea add --title "أسرار النّوم العميق!" --format long
 studio 0 budget spend

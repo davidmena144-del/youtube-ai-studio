@@ -11,7 +11,7 @@ export function wikipediaConnector(opts: { wikiBase?: string; restBase?: string;
     platform: "wikipedia",
     async collect(ctx: ConnectorContext): Promise<ConnectorResult> {
       if (!ctx.keywords.length) return { status: "skipped", items: [], detail: "no niche keywords in the strategy yet" };
-      const lang = ctx.language || "ar";
+      const lang = /^[a-z]{2,3}$/.test(ctx.language) ? ctx.language : "ar"; // never let data choose the host
       const wiki = opts.wikiBase ?? `https://${lang}.wikipedia.org`;
       const rest = opts.restBase ?? "https://wikimedia.org/api/rest_v1";
       const now = (opts.now ?? (() => new Date()))();

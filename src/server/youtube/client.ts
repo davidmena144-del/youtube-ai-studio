@@ -17,7 +17,8 @@ export type YtConfig = {
 };
 
 export const SCOPES = [
-  "https://www.googleapis.com/auth/youtube",
+  // youtube.force-ssl covers upload, thumbnails AND captions.insert (plain "youtube" is not accepted by captions.insert)
+  "https://www.googleapis.com/auth/youtube.force-ssl",
   "https://www.googleapis.com/auth/yt-analytics.readonly",
 ].join(" ");
 
@@ -30,7 +31,7 @@ export class YouTubeApiError extends Error {
     super(message);
   }
   get retryable() {
-    return this.status >= 500 || this.status === 429 || ["backendError", "rateLimitExceeded"].includes(this.reason);
+    return this.status >= 500 || this.status === 429 || ["backendError", "rateLimitExceeded", "quotaExceeded", "userRateLimitExceeded"].includes(this.reason);
   }
 }
 
@@ -119,7 +120,16 @@ export class YouTube {
       body: JSON.stringify(videoResource(meta)),
     });
     const loc = r.headers.get("location");
-    if (!r.ok || !loc) throw new YouTubeApiError(r.status, "uploadInit", `could not start upload: HTTP ${r.status} ${await r.text()}`);
+    if (!r.ok || !loc) {
+      const text = await r.text();
+      let reason = "uploadInit";
+      try {
+        reason = JSON.parse(text)?.error?.errors?.[0]?.reason ?? reason; // e.g. quotaExceeded → retryable
+      } catch {
+        /* non-JSON body */
+      }
+      throw new YouTubeApiError(r.status, reason, `could not start upload: HTTP ${r.status} (${reason})`);
+    }
     return loc;
   }
 

@@ -41,5 +41,7 @@ export async function collectTrends(channelId: string, connectors: TrendConnecto
       VALUES (${channelId}::uuid, ${c.platform}, ${res.status}, ${res.items.length}, ${res.detail}, ${started.toISOString()}::timestamptz, now()) RETURNING id`);
     summary[c.platform] = { status: res.status, items: res.items.length, detail: res.detail };
   }
+  // YouTube API policy: data about other channels is deleted after 30 days (also PPCA Page posts).
+  await one(sql`SELECT app.purge_trends(30) AS n`);
   return summary;
 }

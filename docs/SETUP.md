@@ -33,7 +33,7 @@
    1. افتح `https://developers.google.com/oauthplayground`.
    2. اضغط ⚙️ (الإعدادات)، فعّل **Use your own OAuth credentials**، والصق Client ID وClient secret.
    3. في خانة **Input your own scopes** اكتب السطر التالي ثم **Authorize APIs**:
-      `https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/yt-analytics.readonly`
+      `https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/yt-analytics.readonly`
    4. سجّل الدخول **بحساب القناة**، ووافق (يظهر تحذير "unverified app" لك وحدك).
    5. اضغط **Exchange authorization code for tokens**، وانسخ **Refresh token**.
    6. ضعه مباشرة في سر GitHub `YT_REFRESH_TOKEN` (الخطوة 2). لا ترسله في المحادثة.

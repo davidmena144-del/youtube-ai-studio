@@ -28,5 +28,5 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --omit=dev
+      - run: npm ci --omit=dev --ignore-scripts # no dependency lifecycle scripts in jobs that hold secrets
       - run: node --import tsx scripts/trends-smoke.ts

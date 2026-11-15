@@ -30,9 +30,16 @@ async function saveArtifact(projectId: string, kind: string, content: unknown) {
     WHERE p.id = ${projectId}::uuid GROUP BY p.revision RETURNING id`);
 }
 
+/** Allowlisted environment for the Python media process: it runs third-party TTS packages and
+ * downloaded model files, so it never receives database URLs, tokens or keys. */
+export function mediaEnv(src: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const allow = ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TTS_ENGINE", "HF_HOME", "HF_HUB_CACHE", "XDG_CACHE_HOME", "TTS_CACHE", "OMP_NUM_THREADS"];
+  return Object.fromEntries(allow.filter((k) => src[k] !== undefined).map((k) => [k, src[k]]));
+}
+
 export function runPython(args: string[], cwd: string, timeoutMs: number): Promise<{ code: number; out: string; err: string }> {
   return new Promise((resolve, reject) => {
-    const py = spawn(process.env.MEDIA_PYTHON ?? "python3", args, { cwd, env: process.env });
+    const py = spawn(process.env.MEDIA_PYTHON ?? "python3", args, { cwd, env: mediaEnv() });
     let out = "";
     let err = "";
     py.stdout.on("data", (d) => (out += d));
@@ -69,7 +76,7 @@ export async function produceAndPublish(job: Job, deps: { yt?: YouTube; render?:
     manifest = null;
   }
   if (!manifest?.qa.passed) {
-    await one(sql`SELECT app.set_project_status(${projectId}::uuid, ARRAY['approved','in_progress','media_review','produced','producing','failed']::project_status[], 'producing') AS ok`);
+    await one(sql`SELECT app.set_project_status(${projectId}::uuid, ARRAY['approved','produced','producing']::project_status[], 'producing') AS ok`);
     mkdirSync(out, { recursive: true });
     const specFile = path.join(out, "spec.json");
     writeFileSync(specFile, JSON.stringify(spec));

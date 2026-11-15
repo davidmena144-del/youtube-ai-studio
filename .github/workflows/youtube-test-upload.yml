@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --omit=dev
+      - run: npm ci --omit=dev --ignore-scripts # no dependency lifecycle scripts in jobs that hold secrets
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"

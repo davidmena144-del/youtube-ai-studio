@@ -39,8 +39,9 @@ export function youtubeConnector(opts: { base?: string; oauthBase?: string } = {
       };
       const call = <T>(path: string, params: Record<string, string>) => {
         const qs = new URLSearchParams(params);
-        if (auth.key) qs.set("key", auth.key);
-        return getJson<T>(`${base}/youtube/v3/${path}?${qs}`, auth.bearer ? { headers: { authorization: `Bearer ${auth.bearer}` } } : {});
+        // credentials in headers only (never in URLs that could end up in logs)
+        const headers: Record<string, string> = auth.key ? { "x-goog-api-key": auth.key } : { authorization: `Bearer ${auth.bearer}` };
+        return getJson<T>(`${base}/youtube/v3/${path}?${qs}`, { headers });
       };
       const toItem = (v: YtVideo, kind: TrendItem["kind"], source: string, extra: Partial<TrendItem> = {}): TrendItem => ({
         platform: "youtube",

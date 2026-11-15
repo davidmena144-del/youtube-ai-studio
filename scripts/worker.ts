@@ -39,6 +39,8 @@ async function main() {
     console.log(`pending=${p.all > 0 ? p.all : 1}`);
     console.log(`media=${p.media}`);
     console.log(`[worker] free-minutes used this month: ${used}/${limit}${used >= limit ? " — budget reached, skipping" : ""}`);
+    // GitHub bills every job by the started minute: count the checkout + install + check itself.
+    await recordQuota("gha.minutes", "month", 1, 1_000_000).catch(() => {});
     return;
   }
   if (used >= limit) {

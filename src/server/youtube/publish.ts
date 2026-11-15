@@ -10,6 +10,8 @@ import { YouTube, YouTubeApiError, QuotaExhaustedError, type TokenSet, type Vide
 
 export const TOKEN_SECRET = "youtube.oauth";
 
+class YouTubeRejectedError extends NonRetryableError {}
+
 export type Manifest = {
   format: "short" | "long";
   title: string;
@@ -91,7 +93,7 @@ export async function publishProject(opts: {
     if (!pub) {
       if (gate.status === "rate_limited") throw new RetryableError("daily upload cap reached", 6 * 3600_000);
       if (gate.status === "paused") throw new RetryableError("channel paused (kill switch)", 3600_000);
-      throw new NonRetryableError(`publish refused: ${gate.status}`);
+      throw new NonRetryableError(`publish refused: ${gate.status}`); // not_ready | not_approved | not_found
     }
   }
   // A resumed publication keeps the privacy/schedule it was created with.
@@ -106,8 +108,9 @@ export async function publishProject(opts: {
 
   const yt = opts.yt ?? (await youtubeFromStore(ytConfigFromEnv()));
   await rows(sql`UPDATE publications SET status = 'uploading', updated_at = now() WHERE id = ${pub.id}::uuid RETURNING id`);
+  let uploadedId: string | null = pub.external_id;
   try {
-    const marker = `ys:${pub.id}`;
+    const marker = `ys:${opts.projectId}`; // per PROJECT: survives a revision bump or a re-created publication
     let videoId = pub.external_id;
     if (!videoId) {
       const channel = await yt.myChannel();
@@ -131,6 +134,7 @@ export async function publishProject(opts: {
       }
       videoId = await yt.uploadFile(session, video);
     }
+    uploadedId = videoId;
     await one(sql`UPDATE publications SET external_id = ${videoId}, external_url = ${"https://youtu.be/" + videoId}, updated_at = now() WHERE id = ${pub.id}::uuid RETURNING id`);
 
     const warnings: string[] = [];
@@ -147,7 +151,7 @@ export async function publishProject(opts: {
     const status = await yt.videoStatus(videoId);
     if (!status) throw new RetryableError("uploaded video not visible yet", 5 * 60_000);
     if (status.status.uploadStatus === "rejected" || status.status.uploadStatus === "failed") {
-      throw new NonRetryableError(`YouTube ${status.status.uploadStatus} the video: ${status.status.rejectionReason ?? status.status.failureReason ?? "unknown"}`);
+      throw new YouTubeRejectedError(`YouTube ${status.status.uploadStatus} the video: ${status.status.rejectionReason ?? status.status.failureReason ?? "unknown"}`);
     }
     await finish(pub.id, opts.projectId, true, videoId, `https://youtu.be/${videoId}`, warnings.join("; ") || null, publishAt ? "scheduled" : "published");
     await recordHistory({
@@ -162,7 +166,11 @@ export async function publishProject(opts: {
     if (e instanceof QuotaExhaustedError) throw new RetryableError(e.message, 6 * 3600_000);
     if (e instanceof YouTubeApiError && e.retryable) throw new RetryableError(e.message, 10 * 60_000);
     if (e instanceof RetryableError) throw e;
-    await finish(pub.id, opts.projectId, false, null, null, (e as Error).message, "failed");
+    // Once the video exists on YouTube, never mark the publication failed (that could lead to a second
+    // upload later); keep it "uploading" and let the next run verify and finish it. Only an explicit
+    // YouTube rejection closes it as failed.
+    if (uploadedId && !(e instanceof YouTubeRejectedError)) throw new RetryableError(`video ${uploadedId} uploaded; finishing later: ${(e as Error).message}`, 15 * 60_000);
+    await finish(pub.id, opts.projectId, false, uploadedId, null, (e as Error).message, "failed");
     throw e instanceof NonRetryableError ? e : new NonRetryableError((e as Error).message);
   }
 }

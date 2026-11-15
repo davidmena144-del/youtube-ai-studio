@@ -28,11 +28,17 @@ afterEach(async () => {
   await t.close();
 });
 
-async function newProject(status: "in_progress" | "produced" = "in_progress") {
+async function newProject(status: "in_progress" | "produced" | "media_review" = "in_progress", approvals = status !== "in_progress") {
   const [p] = await t.db
     .insert(projects)
     .values({ topic: "t", title: "t", format: "short", targetDurationSec: 45, channelId, status })
     .returning();
+  if (approvals) {
+    await t.db.insert(artifacts).values([
+      { projectId: p.id, kind: "qa_report", version: 1, revision: p.revision, content: { approved: true } },
+      { projectId: p.id, kind: "media_qa_report", version: 1, revision: p.revision, content: { qa: { passed: true } } },
+    ]);
+  }
   return p;
 }
 
@@ -155,6 +161,36 @@ describe("publish gate", () => {
 
     await setPolicy(channelId, { kill_switch: true });
     expect((await requestPublish({ projectId: p2.id, mode: "dry_run", publishAt: null, privacy: "private", synthetic: true, key: "d" })).status).toBe("paused");
+  });
+
+  it("requires editorial + media QA approval and refuses media_review (QA failed)", async () => {
+    const noQa = await newProject("produced", false);
+    expect((await requestPublish({ projectId: noQa.id, mode: "live", publishAt: null, privacy: "public", synthetic: true, key: "q1" })).status).toBe("not_approved");
+    const failedMedia = await newProject("media_review");
+    expect((await requestPublish({ projectId: failedMedia.id, mode: "live", publishAt: null, privacy: "public", synthetic: true, key: "q2" })).status).toBe("not_ready");
+    // QA approved for an OLD revision does not count after a revision bump
+    const p = await newProject("produced");
+    await t.db.update(projects).set({ revision: 1 }).where(eq(projects.id, p.id));
+    expect((await requestPublish({ projectId: p.id, mode: "live", publishAt: null, privacy: "public", synthetic: true, key: "q3" })).status).toBe("not_approved");
+  });
+
+  it("enforces cadence for live uploads: minimum hours between uploads and weekly caps per format", async () => {
+    await setPolicy(channelId, { max_uploads_per_day: 10, min_hours_between_uploads: 12, max_shorts_per_week: 2 });
+    const base = new Date("2027-01-04T10:00:00Z"); // a Monday
+    const at = (h: number) => new Date(base.getTime() + h * 3600_000);
+    const pub = async (h: number, key: string) =>
+      (await requestPublish({ projectId: (await newProject("produced")).id, mode: "live", publishAt: at(h), privacy: "private", synthetic: true, key })).status;
+    expect(await pub(0, "c1")).toBe("requested");
+    expect(await pub(6, "c2")).toBe("rate_limited"); // < 12 h after the previous upload
+    expect(await pub(24, "c3")).toBe("requested");
+    expect(await pub(48, "c4")).toBe("rate_limited"); // 3rd Short in the same week > cap 2
+    expect(await pub(7 * 24, "c5")).toBe("requested"); // next week
+  });
+
+  it("a project without a channel cannot exist; a missing channel counts as paused", async () => {
+    await expect(t.client.query("INSERT INTO projects (topic, title, format, target_duration_sec) VALUES ('t','t','short',45)")).rejects.toThrow(/channel_id/);
+    const [{ p }] = (await t.client.query<{ p: boolean }>("SELECT app.channel_paused(gen_random_uuid()) AS p")).rows;
+    expect(p).toBe(true);
   });
 });
 

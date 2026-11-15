@@ -24,7 +24,7 @@ export function encrypt(plaintext: string, key: Buffer, aad = ""): string {
 export function decrypt(token: string, key: Buffer, aad = ""): string {
   const [v, ivB, tagB, ctB] = token.split(".");
   if (v !== "v1" || !ivB || !tagB || ctB === undefined) throw new Error("Malformed ciphertext");
-  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB, "base64url"));
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB, "base64url"), { authTagLength: 16 }); // reject truncated tags
   if (aad) decipher.setAAD(Buffer.from(aad));
   decipher.setAuthTag(Buffer.from(tagB, "base64url"));
   return Buffer.concat([decipher.update(Buffer.from(ctB, "base64url")), decipher.final()]).toString("utf8");

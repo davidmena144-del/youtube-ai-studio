@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initChannel, setPolicy } from "@/core/channel";
 import { one, sql } from "@/server/db/client";
-import { projects, publications } from "@/server/db/schema";
+import { artifacts, projects, publications } from "@/server/db/schema";
 import { RetryableError } from "@/server/queue/errors";
 import { pollDeviceFlow, startDeviceFlow, YouTube, type YtConfig } from "@/server/youtube/client";
 import { publishProject, youtubeFromStore, type Seo } from "@/server/youtube/publish";
@@ -40,6 +40,10 @@ afterEach(async () => {
 const yt = () => new YouTube(cfg, { access_token: "at-0", refresh_token: "rt", expires_at: 0 });
 async function producedProject() {
   const [p] = await t.db.insert(projects).values({ topic: "t", title: "t", format: "short", targetDurationSec: 45, channelId, status: "produced" }).returning();
+  await t.db.insert(artifacts).values([
+    { projectId: p.id, kind: "qa_report", version: 1, revision: p.revision, content: { approved: true } },
+    { projectId: p.id, kind: "media_qa_report", version: 1, revision: p.revision, content: { qa: { passed: true } } },
+  ]);
   return p;
 }
 
@@ -103,6 +107,28 @@ describe("YouTube publisher (against a fake Google API)", () => {
     const r = await publishProject({ projectId: p.id, channelId, outDir, seo, publishAt: null, yt: yt() });
     expect(r.videoId).toBe(fake.state.videos[0].id);
     expect(fake.state.uploadInits).toBe(1);
+  });
+
+  it("an error AFTER the upload never marks the publication failed; the next run finishes it (no 2nd upload)", async () => {
+    const p = await producedProject();
+    fake.state.videosListFailOnce = true;
+    await expect(publishProject({ projectId: p.id, channelId, outDir, seo, publishAt: null, yt: yt() })).rejects.toBeInstanceOf(RetryableError);
+    const [pub] = await t.db.select().from(publications);
+    expect(pub.status).toBe("uploading");
+    expect(pub.externalId).toBe(fake.state.videos[0].id);
+    const r = await publishProject({ projectId: p.id, channelId, outDir, seo, publishAt: null, yt: yt() });
+    expect(r.videoId).toBe(fake.state.videos[0].id);
+    expect(fake.state.uploadInits).toBe(1);
+  });
+
+  it("YouTube quotaExceeded (403) is retried later, not a permanent failure", async () => {
+    const p = await producedProject();
+    fake.state.quotaExceededOnInit = true;
+    await expect(publishProject({ projectId: p.id, channelId, outDir, seo, publishAt: null, yt: yt() })).rejects.toBeInstanceOf(RetryableError);
+    fake.state.quotaExceededOnInit = false;
+    const r = await publishProject({ projectId: p.id, channelId, outDir, seo, publishAt: null, yt: yt() });
+    expect(r.videoId).toBeTruthy();
+    expect(fake.state.videos).toHaveLength(1);
   });
 
   it("re-running a finished publication is a no-op", async () => {

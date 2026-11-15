@@ -31,7 +31,8 @@ export async function startFakePlatforms() {
     // YouTube
     if (p.startsWith("/youtube/v3/")) {
       if (state.ytFail) return json(500, { error: { message: "backend" } });
-      if (!query.key && req.headers.authorization !== "Bearer at-yt") return json(403, { error: { message: "no auth" } });
+      if (!req.headers["x-goog-api-key"] && req.headers.authorization !== "Bearer at-yt") return json(403, { error: { message: "no auth" } });
+      if (query.key) return json(400, { error: { message: "API key must not be in the URL" } });
       if (p.endsWith("/videos") && query.chart === "mostPopular") return json(200, { items: [vid(`pop-${query.regionCode}`, `رائج ${query.regionCode}`, 100000, 10)] });
       if (p.endsWith("/search")) return json(200, { items: [{ id: { videoId: "s1" } }, { id: { videoId: "s2" } }] });
       if (p.endsWith("/videos")) return json(200, { items: String(query.id).split(",").map((id, i) => vid(id, `فيديو ${id}`, 5000 * (i + 1), 2 + i * 40)) });

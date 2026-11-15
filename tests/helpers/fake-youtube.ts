@@ -19,6 +19,8 @@ export async function startFakeYouTube() {
     thumbnailForbidden: false,
     uploadInits: 0,
     deviceApproved: false,
+    videosListFailOnce: false, // videos.list answers 400 once (non-retryable) — after the upload
+    quotaExceededOnInit: false, // upload init answers 403 quotaExceeded
   };
   let seq = 0;
   const server = http.createServer(async (req, res) => {
@@ -49,6 +51,7 @@ export async function startFakeYouTube() {
     if (!authed()) return json(401, { error: { message: "unauthorised", errors: [{ reason: "authError" }] } });
 
     if (url.pathname === "/upload/youtube/v3/videos" && req.method === "POST") {
+      if (state.quotaExceededOnInit) return json(403, { error: { message: "quota", errors: [{ reason: "quotaExceeded" }] } });
       state.uploadInits++;
       const sid = `s${++seq}`;
       state.sessions.set(sid, { size: Number(req.headers["x-upload-content-length"]), received: 0, resource: JSON.parse(body.toString()) });
@@ -88,6 +91,10 @@ export async function startFakeYouTube() {
       return json(200, { items: state.videos.map((v) => ({ snippet: { description: v.resource.snippet.description, resourceId: { videoId: v.id } } })) });
     }
     if (url.pathname === "/youtube/v3/videos") {
+      if (state.videosListFailOnce) {
+        state.videosListFailOnce = false;
+        return json(400, { error: { message: "bad request", errors: [{ reason: "badRequest" }] } });
+      }
       const v = state.videos.find((x) => x.id === url.searchParams.get("id"));
       return json(200, { items: v ? [{ id: v.id, status: { uploadStatus: "uploaded", ...v.resource.status }, statistics: { viewCount: "0" } }] : [] });
     }
