@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #111418;
+  --muted: #5d6673;
+  --line: #e3e6eb;
+  --accent: #d92d20;
+  --accent-fg: #ffffff;
+  --tone-gray: #eef0f3;
+  --tone-gray-fg: #4a5260;
+  --tone-blue: #e6f0ff;
+  --tone-blue-fg: #1d4ed8;
+  --tone-amber: #fff4dc;
+  --tone-amber-fg: #9a5b00;
+  --tone-green: #e3f6ea;
+  --tone-green-fg: #15803d;
+  --tone-red: #fde8e7;
+  --tone-red-fg: #b42318;
+  --tone-violet: #f0eaff;
+  --tone-violet-fg: #6d28d9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1014;
+    --surface: #171a20;
+    --fg: #eceef2;
+    --muted: #9aa3b2;
+    --line: #2a2f38;
+    --accent: #ff5a4e;
+    --accent-fg: #160302;
+    --tone-gray: #242832;
+    --tone-gray-fg: #c3c9d4;
+    --tone-blue: #172544;
+    --tone-blue-fg: #8db4ff;
+    --tone-amber: #3a2a0a;
+    --tone-amber-fg: #ffc861;
+    --tone-green: #0f2e1d;
+    --tone-green-fg: #6ee7a0;
+    --tone-red: #3a1513;
+    --tone-red-fg: #ff9b93;
+    --tone-violet: #2a1a4a;
+    --tone-violet-fg: #c4a8ff;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-tone-gray: var(--tone-gray);
+  --color-tone-gray-fg: var(--tone-gray-fg);
+  --color-tone-blue: var(--tone-blue);
+  --color-tone-blue-fg: var(--tone-blue-fg);
+  --color-tone-amber: var(--tone-amber);
+  --color-tone-amber-fg: var(--tone-amber-fg);
+  --color-tone-green: var(--tone-green);
+  --color-tone-green-fg: var(--tone-green-fg);
+  --color-tone-red: var(--tone-red);
+  --color-tone-red-fg: var(--tone-red-fg);
+  --color-tone-violet: var(--tone-violet);
+  --color-tone-violet-fg: var(--tone-violet-fg);
+  --font-sans: system-ui, "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}

@@ -1,0 +1,47 @@
+name: Worker
+
+# Free cloud worker: drains the job queue, then exits.
+# DISABLED until you set the repository variable WORKER_ENABLED=true
+# (Settings → Secrets and variables → Actions → Variables) and add the secrets below.
+#
+# Required secrets: DATABASE_URL, SESSION_SECRET, ADMIN_PASSWORD_HASH
+# Optional secrets: ANTHROPIC_API_KEY, ENCRYPTION_KEY
+#
+# Minutes: each run is billed at least 1 minute. Private repos get 2,000 free minutes/month,
+# so the schedule below (every 2 hours ≈ 360 runs/month) leaves room for on-demand runs.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */2 * * *"
+
+concurrency:
+  group: worker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  drain:
+    if: vars.WORKER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      LLM_PROVIDER: auto
+      WORKER_TIME_BUDGET_MS: "1500000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run worker:once
