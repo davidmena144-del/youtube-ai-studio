@@ -74,7 +74,20 @@ Actions → **YouTube private test upload** → Run workflow.
 
 يرفع فيديو اختبار **خاصًا** فقط ثم يتحقق منه، ويطبع رابطه. يمكنك حذفه من YouTube Studio بعدها.
 
-## 5. التشغيل
+## 5. تشغيل المدير (Routine) — خطوة واحدة من claude.ai
+
+المنصة لا تسمح لي بإرفاق موصل Supabase بمهمة مجدولة أنشئها بنفسي، فأنشئها أنت مرة واحدة:
+
+1. افتح claude.ai/code ← **Routines** ← **New routine**.
+2. **Repository:** `davidmena144-del/youtube-ai-studio` (الفرع `main`).
+3. **Environment:** `youtube-ai-studio`.
+4. **Connectors:** فعّل **Supabase** (وGitHub إن ظهر).
+5. **Schedule:** كل 3 ساعات، مثلًا `17 */3 * * *`.
+6. **Prompt:** انسخ النص الموجود في الملف `docs/MANAGER-ROUTINE.md` كما هو.
+
+يعمل المدير بعدها كل 3 ساعات: يخطط ويكتب ويجهّز الإنتاج ويرسل لك ملخصًا. لا يحتاج أي أسرار؛ وصوله لقاعدة البيانات عبر الموصل وبصلاحيات `app_manager` المحدودة فقط.
+
+## 5ب. التشغيل
 
 بعد ذلك يعمل المدير وحده:
 - يحلل ويخطط ويكتب وينتج وينشر ويحلل النتائج؛

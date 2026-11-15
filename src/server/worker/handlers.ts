@@ -81,7 +81,7 @@ export async function produceAndPublish(job: Job, deps: { yt?: YouTube; render?:
     const specFile = path.join(out, "spec.json");
     writeFileSync(specFile, JSON.stringify(spec));
     const render = deps.render ?? runPython;
-    const r = await render(["-m", "studio_media.produce", "--spec", specFile, "--out", out, ...(process.env.MEDIA_PHOTOS === "1" ? ["--photos"] : [])], MEDIA_DIR, 50 * 60_000);
+    const r = await render(["-m", "studio_media.produce", "--spec", specFile, "--out", out, ...(process.env.MEDIA_PHOTOS === "1" ? ["--photos"] : [])], MEDIA_DIR, Number(process.env.MEDIA_TIMEOUT_MS ?? 180 * 60_000));
     if (r.code !== 0 && r.code !== 3) throw new RetryableError(`media render crashed (exit ${r.code}): ${r.err.slice(-600)}`, 10 * 60_000);
     manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     await saveArtifact(projectId, "media_qa_report", manifest);

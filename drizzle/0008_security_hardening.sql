@@ -102,7 +102,13 @@ BEGIN
   -- PG16+: a role created by a non-superuser CREATEROLE owner is granted back with SET FALSE, so check
   -- the SET right specifically. INHERIT FALSE: the owner gains nothing implicitly, it may only SET ROLE.
   IF current_user <> 'app_manager' AND NOT pg_has_role(current_user, 'app_manager', 'SET') THEN
-    EXECUTE format('GRANT app_manager TO %I WITH SET TRUE, INHERIT FALSE', current_user);
+    BEGIN
+      EXECUTE format('GRANT app_manager TO %I WITH SET TRUE, INHERIT FALSE', current_user);
+    EXCEPTION WHEN insufficient_privilege THEN
+      -- The migrating user is not an admin of app_manager (role created by someone else). Not fatal:
+      -- the manager can still connect with its own login role that is a member of app_manager.
+      RAISE NOTICE 'could not grant SET on app_manager to %; grant it as the role admin if the owner session must SET ROLE', current_user;
+    END;
   END IF;
 END $$;
 --> statement-breakpoint
