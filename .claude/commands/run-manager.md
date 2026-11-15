@@ -28,16 +28,16 @@ same functions. Never print connection strings or tokens.
    | item kind | what to do |
    |---|---|
    | `strategy_missing` | Call channel-analyst, then strategist. Save with `app.set_strategy`. Add slots with `app.add_slot` (ideas first via `app.add_idea`). |
-   | `calendar_short` | Call trend-researcher if the backlog has fewer than 5 ideas (`app.add_idea` rejects duplicates). Then strategist for slots. |
+   | `calendar_short` | If the backlog has fewer than 5 ideas: read `select app.trend_summary('<ch>')` and call **trend-intelligence** with it. Add its ideas via `app.add_idea`, which rejects duplicates, and its suggested competitors via `app.add_competitor`. Then call strategist for slots. |
    | `slot_unassigned` | Run `app.create_project(ch, slot, title, topic, target_s)` (short: 45, long: 480). Then run the production chain below. |
    | `directive` | Apply the owner's instruction (policy via `channel_policies` only through the CLI or SQL `app.*`). Then mark the directive done: `update directives set status='done', resolution='…', resolved_at=now() where id='…'`. |
    | `job_ready` | It is a cognitive job for `assignee`. Do it with that specialist, save its artifact, and mark the job: `app.complete_job(job, owner, result)`. Claim it first with `app.claim_job('<owner>', '{cognitive}', null, '<assignee>')`. |
    | `job_dead` | Read `last_error`. If fixable (bad spec or QA issue), fix the artifact and `app.retry_job(id)`. Otherwise log an `escalation` decision. |
    | `message_open` | Convert with `app.convert_message(id, 2, job_json)`. A `hop_limit` result means escalate instead. |
-   | `weekly_review` | Run `select app.analytics_summary('<ch>')`, then call performance-analyst. Store lessons with `app.remember` and log a `weekly_review` decision. Re-plan with strategist **only** if `recommend_strategy_change` is true and the evidence groups have `enough_data`. |
+   | `weekly_review` | Run `select app.analytics_summary('<ch>')` and `select app.trend_summary('<ch>', 7)`, then call performance-analyst (and trend-intelligence for competitor insights). Store lessons with `app.remember` and log a `weekly_review` decision. Re-plan with strategist **only** if `recommend_strategy_change` is true and the evidence groups have `enough_data`. |
 
    **Production chain** (one project; each output is stored with `app.put_artifact(project, kind, json)`):
-   1. trend-researcher, or reuse the slot's idea, writing `research` with sources;
+   1. reuse the slot's idea, adding the trend evidence from `app.trend_summary` and writing `research` with sources;
    2. scriptwriter, writing `script`;
    3. fact-checker, writing `fact_check` (if `revise`: one rewrite, then re-check; a second failure means escalate and skip the project);
    4. voice-director, which updates the script text;
@@ -49,6 +49,10 @@ same functions. Never print connection strings or tokens.
 6. **Record decisions** that change direction (`app.log_decision`) with a rationale and expected outcome.
 7. **Finish.** Run `select app.finish_manager_run(run, owner, 'finished'|'noop'|'aborted', summary, actions, model_calls, agenda_json, fingerprint, abort_reason)`.
 8. **Daily digest.** If this is the first run after 20:00 channel time, post `select app.report('<ch>', '1 day')` as a short Arabic summary in your final message. That message is the owner's report.
+
+## Trend data
+
+The worker collects trends daily on its own (`trends.collect`), using official APIs only. You never call platform APIs yourself. If the summary shows a connector as `skipped`, that is a platform restriction or missing setup; report it in the digest and don't try to work around it.
 
 ## Hard rules
 

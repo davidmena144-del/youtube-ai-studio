@@ -80,6 +80,30 @@ Actions → **YouTube private test upload** → Run workflow.
 - يحلل ويخطط ويكتب وينتج وينشر ويحلل النتائج؛
 - يرسل لك ملخصًا يوميًا.
 
+## 6. Trend Intelligence — اختياري، منصة منصة
+
+موظف Trend Intelligence يجمع البيانات يوميًا من الـ APIs الرسمية فقط. أي منصة لم تُضبط تُسجَّل "skipped" مع السبب ولا يتوقف الباقي.
+
+| المنصة | ما يُجمع | ما يحتاجه منك | القيد الرسمي |
+|---|---|---|---|
+| **YouTube** | الرائج في مصر والسعودية والإمارات، والأكثر مشاهدة في مجال القناة خلال 7 أيام، والقنوات المنافسة وآخر فيديوهاتها | **لا شيء إضافي:** يستخدم رمز YouTube الموجود. اختياري للأفضلية: مفتاح API عام. | البحث مكلف في حصة YouTube، فله سقف يومي خاص (1200 وحدة) لا يمس حصة الرفع |
+| **Wikipedia** | اهتمام الجمهور بموضوعات القناة: مشاهدات 7 أيام مقابل السابقة | لا شيء (بيانات عامة مفتوحة) | — |
+| **TikTok** | حسابك أنت فقط: المتابعون وأرقام فيديوهاتك | تطبيق مطوّر TikTok + موافقة OAuth (انظر أدناه) | **الترندات وحسابات الآخرين غير متاحة رسميًا للاستخدام التجاري.** Research API للباحثين الأكاديميين وغير الربحيين فقط، ولن أتحايل عليه |
+| **Facebook** | صفحتك أنت: المتابعون، ومنشوراتك وتفاعلها | رمز صفحة من Graph API Explorer (انظر أدناه) | **صفحات المنافسين تحتاج ميزة "Page Public Content Access"** بمراجعة Meta وتوثيق نشاط تجاري. CrowdTangle أُغلق، وMeta Content Library للباحثين فقط |
+
+**YouTube (مفتاح عام، اختياري):** Google Cloud → Credentials → Create credentials → **API key**. قيّده بـ YouTube Data API v3 فقط، ثم أضفه كسر `YT_API_KEY`.
+
+**Facebook (صفحتك فقط):**
+1. افتح developers.facebook.com وأنشئ تطبيقًا من نوع **Business** (مجاني).
+2. افتح **Graph API Explorer**، واختر تطبيقك، وأضف الصلاحيتين `pages_show_list` و`pages_read_engagement` فقط، ثم **Generate Access Token**.
+3. حوّله لرمز طويل الأمد من **Access Token Debugger** (زر Extend)، ثم من `me/accounts` في Explorer انسخ `access_token` و`id` لصفحتك.
+4. أضف السرّين `FB_PAGE_TOKEN` و`FB_PAGE_ID`.
+5. المنافسون: اتركهم مسجلين؛ لن تُقرأ صفحاتهم إلا إذا وافقت Meta على PPCA وضبطتَ المتغير `FB_PPCA_APPROVED=true`.
+
+**TikTok (حسابك فقط):** يحتاج تطبيقًا في developers.tiktok.com بمنتج **Login Kit**، بالصلاحيات `user.info.basic` و`user.info.stats` و`video.list` (بلا صلاحية نشر)، ثم مراجعة TikTok للتطبيق. بعد الموافقة أجهّز لك صفحة استقبال الموافقة لتحصل على الرمز، ثم تضيف الأسرار `TIKTOK_CLIENT_KEY` و`TIKTOK_CLIENT_SECRET` و`TIKTOK_REFRESH_TOKEN`.
+
+> لا يُطلب منك أي كلمة مرور لأي منصة، ولا تُخزَّن. الرموز في أسرار GitHub فقط. رمز TikTok المتجدد يُحفظ مشفّرًا في قاعدة البيانات.
+
 ## الإيقاف والاستئناف
 
 | الأمر | المكان | الأثر |

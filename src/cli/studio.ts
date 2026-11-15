@@ -93,7 +93,9 @@ export const HELP = `studio <command>
   memory set --kind <k> --key <key> --content <c> [--confidence 0.7] [--source <s>] | memory list [--kind <k>]
   message send --from <a> --to <b> --type <t> --key <dedupe> --body-file f [--project <id>] [--hop n]
   report [--since '1 day']               owner digest: published, failures, warnings, queue, budget
-  analytics summary [--min-n 5] | analytics enqueue`;
+  analytics summary [--min-n 5] | analytics enqueue
+  trends summary [--days 7] | trends collect     Trend Intelligence (YouTube, TikTok, Facebook, Wikipedia)
+  competitor add --platform youtube|tiktok|facebook --id <channel/page id> [--name <n>] | competitor list`;
 
 export async function runCli(argv: string[]): Promise<CliResult> {
   const { pos, flags } = parseArgs(argv);
@@ -342,6 +344,24 @@ export async function runCli(argv: string[]): Promise<CliResult> {
         const ch = await mustGetChannel();
         if (sub === "summary") return ok({ summary: await fn(sql`SELECT app.analytics_summary(${ch.id}::uuid, ${Number(str(flags, "min-n") ?? 5)}::int) AS r`) });
         if (sub === "enqueue") return ok({ jobId: await fn(sql`SELECT app.enqueue_analytics(${ch.id}::uuid) AS r`) });
+        break;
+      }
+
+      case "trends": {
+        const ch = await mustGetChannel();
+        if (sub === "summary") return ok({ trends: await fn(sql`SELECT app.trend_summary(${ch.id}::uuid, ${Number(str(flags, "days") ?? 7)}::int) AS r`) });
+        if (sub === "collect") return ok({ jobId: await fn(sql`SELECT app.enqueue_trends(${ch.id}::uuid) AS r`) });
+        break;
+      }
+
+      case "competitor": {
+        const ch = await mustGetChannel();
+        if (sub === "add") {
+          const platform = need(flags, "platform");
+          if (!["youtube", "tiktok", "facebook"].includes(platform)) throw new Error("--platform must be youtube|tiktok|facebook");
+          return ok({ competitorId: await fn(sql`SELECT app.add_competitor(${ch.id}::uuid, ${platform}, ${need(flags, "id")}, ${str(flags, "name") ?? null}) AS r`) });
+        }
+        if (sub === "list") return ok({ competitors: await rows(sql`SELECT platform, external_id, name, active FROM competitors WHERE channel_id = ${ch.id}::uuid ORDER BY platform, name`) });
         break;
       }
 

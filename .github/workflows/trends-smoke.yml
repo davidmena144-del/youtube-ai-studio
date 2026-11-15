@@ -1,0 +1,32 @@
+name: Trends smoke (live public API)
+
+# Live check of the account-free Trend Intelligence source (Wikimedia Pageviews) against the real
+# endpoints. The YouTube/TikTok/Facebook connectors are exercised against fakes in CI and go live
+# once their credentials are configured (docs/SETUP.md).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "src/server/connectors/**"
+      - "scripts/trends-smoke.ts"
+      - ".github/workflows/trends-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: node --import tsx scripts/trends-smoke.ts

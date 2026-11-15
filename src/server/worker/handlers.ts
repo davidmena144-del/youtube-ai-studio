@@ -9,6 +9,7 @@ import { NonRetryableError, RetryableError } from "../queue/errors";
 import { publishProject, type Seo, youtubeFromStore, ytConfigFromEnv } from "../youtube/publish";
 import type { YouTube } from "../youtube/client";
 import { registerHandler } from "./run";
+import { collectTrends } from "../connectors/collect";
 
 /**
  * Media worker handlers (GitHub Actions). Cognitive work (research, scripts, SEO, review) is done
@@ -121,7 +122,15 @@ export async function pullAnalytics(job: Job, deps: { yt?: YouTube } = {}) {
   return { videos: report.length, day };
 }
 
+/** trends.collect: run every Trend Intelligence connector for the channel (official APIs only). */
+export async function collectTrendsJob(job: Job) {
+  const channelId = (job.payload as { channelId?: string }).channelId ?? job.channelId;
+  if (!channelId) throw new NonRetryableError("channelId missing");
+  return collectTrends(channelId);
+}
+
 export function registerProductionHandlers() {
   registerHandler("video.produce", (job) => produceAndPublish(job));
   registerHandler("analytics.pull", (job) => pullAnalytics(job));
+  registerHandler("trends.collect", (job) => collectTrendsJob(job));
 }

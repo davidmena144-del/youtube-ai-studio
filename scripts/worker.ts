@@ -23,19 +23,21 @@ async function minutesBudget(): Promise<{ used: number; limit: number }> {
   return { used: await quotaUsed("gha.minutes", "month"), limit };
 }
 
-async function pendingCount(): Promise<number> {
-  const r = await one<{ n: number }>(sql`SELECT count(*)::int AS n FROM jobs j
+async function pendingCount(): Promise<{ all: number; media: number }> {
+  const r = await one<{ n: number; media: number }>(sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE j.kind = 'media')::int AS media FROM jobs j
     WHERE j.kind IN ('media','system') AND j.status = 'queued' AND j.run_at <= now()
       AND (j.channel_id IS NULL OR j.type LIKE 'analytics.%' OR NOT app.channel_paused(j.channel_id))`);
-  return r?.n ?? 0;
+  return { all: r?.n ?? 0, media: r?.media ?? 0 };
 }
 
 async function main() {
   workerEnv(); // validates env and refuses paid-provider credentials
   const { used, limit } = await minutesBudget();
   if (process.argv.includes("--check")) {
-    const n = used >= limit ? 0 : await pendingCount();
-    console.log(`pending=${n}`);
+    const p = used >= limit ? { all: 0, media: 0 } : await pendingCount();
+    // Daily trends/analytics jobs are enqueued by the run itself, so "pending" counts them as due.
+    console.log(`pending=${p.all > 0 ? p.all : 1}`);
+    console.log(`media=${p.media}`);
     console.log(`[worker] free-minutes used this month: ${used}/${limit}${used >= limit ? " — budget reached, skipping" : ""}`);
     return;
   }
@@ -52,6 +54,9 @@ async function main() {
     const live = await one<{ n: number }>(sql`SELECT count(*)::int AS n FROM publications pb JOIN projects p ON p.id = pb.project_id
       WHERE p.channel_id = ${ch.id}::uuid AND pb.mode = 'live' AND pb.status = 'succeeded'`);
     if ((live?.n ?? 0) > 0) await one(sql`SELECT app.enqueue_analytics(${ch.id}::uuid) AS id`);
+    // Trend Intelligence: once a strategy exists, collect platform trends daily (idempotent per day).
+    const hasStrategy = await one<{ n: number }>(sql`SELECT count(*)::int AS n FROM strategies WHERE channel_id = ${ch.id}::uuid AND active`);
+    if ((hasStrategy?.n ?? 0) > 0) await one(sql`SELECT app.enqueue_trends(${ch.id}::uuid) AS id`);
   }
   registerHandler("system.noop", async (job) => ({ ok: true, echo: job.payload }));
   registerProductionHandlers();
