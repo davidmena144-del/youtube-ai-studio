@@ -8,6 +8,27 @@
       "when": 1794745049360,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794753873452,
+      "tag": "0001_channel_manager",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794753929833,
+      "tag": "0002_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794754880619,
+      "tag": "0003_roles",
+      "breakpoints": true
     }
   ]
 }

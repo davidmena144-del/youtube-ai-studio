@@ -33,6 +33,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Migration failed:", err instanceof Error ? err.message : err);
+  const cause = err instanceof Error && err.cause instanceof Error ? ` (cause: ${err.cause.message})` : "";
+  console.error("Migration failed:", (err instanceof Error ? err.message.split("\n")[0] : String(err)) + cause);
   process.exit(1);
 });

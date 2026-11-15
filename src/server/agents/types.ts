@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { ArtifactKind, Project } from "../db/schema";
 import type { StructuredRequest } from "../providers/llm/types";
-import type { AppSettings } from "../settings";
 
 // ---------- Output schemas (the contract every LLM provider must satisfy) ----------
 // Kept free of min/max constraints so they map cleanly to JSON-schema structured outputs;
@@ -92,6 +91,9 @@ export type QaReport = QaLlm & {
 
 // ---------- Agent contract ----------
 
+/** The subset of channel configuration agents need (QA threshold). */
+export type AgentSettings = { qaMinScore: number };
+
 export type PipelineArtifacts = {
   research?: Research;
   script?: Script;
@@ -101,7 +103,7 @@ export type PipelineArtifacts = {
 
 export type AgentContext = {
   project: Project;
-  settings: AppSettings;
+  settings: AgentSettings;
   artifacts: PipelineArtifacts;
   /** Reviewer / QA feedback to address in this run. */
   feedback: string[];

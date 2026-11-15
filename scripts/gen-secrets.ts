@@ -1,6 +1,4 @@
-/** Prints fresh random values for SESSION_SECRET, ENCRYPTION_KEY and CRON_SECRET. */
+/** Prints a fresh random ENCRYPTION_KEY (encrypts the YouTube OAuth token at rest from Phase 5). */
 import { randomBytes } from "node:crypto";
 
-console.log(`SESSION_SECRET=${randomBytes(32).toString("base64url")}`);
 console.log(`ENCRYPTION_KEY=${randomBytes(32).toString("base64")}`);
-console.log(`CRON_SECRET=${randomBytes(24).toString("base64url")}`);

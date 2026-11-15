@@ -1,12 +1,12 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { encryptedSecrets } from "../db/schema";
-import { env } from "../env";
+import { workerEnv } from "../env";
 import { decrypt, encrypt, parseKey } from "./crypto";
 
 /** Encrypted key/value store for secrets that must be persisted (never returned to the browser). */
 export async function putSecret(name: string, value: string) {
-  const ciphertext = encrypt(value, parseKey(env().ENCRYPTION_KEY), name);
+  const ciphertext = encrypt(value, parseKey(workerEnv().ENCRYPTION_KEY), name);
   await getDb()
     .insert(encryptedSecrets)
     .values({ name, ciphertext })
@@ -16,7 +16,7 @@ export async function putSecret(name: string, value: string) {
 export async function getSecret(name: string): Promise<string | null> {
   const [row] = await getDb().select().from(encryptedSecrets).where(eq(encryptedSecrets.name, name));
   if (!row) return null;
-  return decrypt(row.ciphertext, parseKey(env().ENCRYPTION_KEY), name);
+  return decrypt(row.ciphertext, parseKey(workerEnv().ENCRYPTION_KEY), name);
 }
 
 export async function hasSecret(name: string): Promise<boolean> {

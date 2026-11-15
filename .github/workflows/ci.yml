@@ -8,7 +8,6 @@ on:
 permissions:
   contents: read
 
-# A push to a branch with an open PR triggers both events; keep only the newest run per ref.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -28,7 +27,19 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      # Includes the zero-spend guard (tests/cost-guard.test.ts) and every SQL function test,
+      # run against real Postgres compiled to WASM (PGlite) with all migrations applied.
       - run: npm test
-      - run: npm run build
-      # Fails the build if a production dependency has a known high/critical vulnerability.
+      # Real Postgres 16 with a NON-superuser owner that has CREATEROLE (like Neon's owner role).
+      # The e2e applies migrations twice (idempotent), then drives the CLI and worker through the
+      # production driver path (drizzle neon-http) via a local HTTP stand-in, as the
+      # least-privilege roles. It does not prove Neon itself; see docs/PHASE1-STATUS.md.
+      - name: Postgres 16 e2e over the neon-http driver path + schema drift check
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -c "CREATE USER ci WITH PASSWORD 'ci' CREATEROLE;" -c "CREATE DATABASE ci OWNER ci;"
+          OWNER_URL=postgres://ci:ci@localhost:5432/ci bash tests/e2e/neon-http.sh
+          DATABASE_URL=postgres://ci:ci@localhost:5432/ci npx drizzle-kit check
+      - name: CLI smoke
+        run: DATABASE_URL=postgres://unused npm run studio -- help | grep -q "studio <command>"
       - run: npm audit --omit=dev --audit-level=high

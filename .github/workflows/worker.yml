@@ -1,28 +1,21 @@
 name: Worker
 
-# Free cloud worker: drains the job queue, then exits.
+# Media/system worker: claims media and system jobs from Neon and runs them, then exits.
+# Phase 1: only the built-in system.noop handler exists (smoke test). Media handlers arrive in
+# Phase 4. The worker never calls a paid API; Claude work happens in Claude Code scheduled tasks.
 #
 # Requirements:
-#  1. This file must be on the repository's DEFAULT branch (main): GitHub only runs scheduled
-#     and manually-dispatched workflows from there.
-#  2. Repository variables (Settings → Secrets and variables → Actions → Variables):
-#       WORKER_ENABLED = true            (the job is skipped otherwise)
-#       LLM_PROVIDER   = anthropic|mock  (REQUIRED — the worker refuses to start without it;
-#                                         use the same value as the web app)
-#  3. Repository secrets:
-#       DATABASE_URL            (required; the pooled URL is fine for the worker)
-#       MIGRATION_DATABASE_URL  (required if DATABASE_URL is a pooled URL: the DIRECT connection)
-#       ANTHROPIC_API_KEY       (required if LLM_PROVIDER=anthropic)
-#       ENCRYPTION_KEY          (from phase 3)
-#     The worker does NOT need SESSION_SECRET or the admin password.
+#  1. This file must be on the default branch for schedules/manual runs to work.
+#  2. Repository variable WORKER_ENABLED=true (the job is skipped otherwise).
+#  3. Secrets: DATABASE_URL (app_worker role), MIGRATION_DATABASE_URL (direct connection, migrator).
 #
-# Minutes: each run is billed at least 1 minute. Private repos get 2,000 free minutes/month;
-# this schedule (every 2 hours ≈ 360 runs/month) leaves room for manual runs.
+# Cost: private repo → draws from the free $12/month included compute; with no payment method on
+# the GitHub account, usage is blocked (never billed) once that allowance is used.
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 */2 * * *"
+    - cron: "43 */3 * * *"
 
 concurrency:
   group: worker
@@ -44,7 +37,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # No secrets are present in this step's environment (install scripts cannot read them).
+      # No secrets in this step's environment (install scripts cannot read them).
       - run: npm ci --omit=dev
 
       - name: Apply database migrations
@@ -53,15 +46,10 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
 
-      - name: Process queued jobs
+      - name: Process media/system jobs
         run: npm run worker:once
         env:
           NODE_ENV: production
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-          # 25 min budget inside the 30 min job timeout; no job starts with < 12 min left
-          # (the Claude generation limit is 10 min), so a job is never killed mid-call.
           WORKER_TIME_BUDGET_MS: "1500000"
           WORKER_MIN_REMAINING_MS: "720000"

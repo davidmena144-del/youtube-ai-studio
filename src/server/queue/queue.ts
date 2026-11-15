@@ -1,177 +1,158 @@
-import { and, asc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
-import { getDb, type Executor } from "../db/client";
-import { jobs, type Job } from "../db/schema";
+import { one, rows, sql } from "../db/client";
+import type { Job } from "../db/schema";
 import { errorMessage, NonRetryableError, RetryableError } from "./errors";
+
+/**
+ * Job queue over Postgres, implemented by the app.* SQL functions (drizzle/0002_functions.sql).
+ * Each call is a single statement, so it works over Neon HTTP. Semantics carried over from PR #1:
+ * idempotent enqueue, SKIP LOCKED claiming, lease fencing, bounded attempts, stale recovery.
+ */
+
+export type JobKind = "cognitive" | "media" | "system";
 
 export type EnqueueInput = {
   type: string;
   payload: Record<string, unknown>;
   idempotencyKey: string;
   projectId?: string | null;
+  kind?: JobKind;
+  assignee?: string | null;
+  dependsOn?: string[];
+  priority?: number;
   maxAttempts?: number;
   runAt?: Date;
+  channelId?: string | null;
+  parentJobId?: string | null;
+  createdBy?: string | null;
 };
 
-/** Default lease: a job running longer than this is assumed abandoned (worker crashed). */
+/** Default lease: a running job not heartbeated for this long is assumed abandoned. */
 export const LEASE_MS = 15 * 60 * 1000;
-
-/**
- * Enqueue a job. Returns the existing job if one with the same idempotency key already exists,
- * so retried HTTP requests / double clicks never create duplicate work.
- */
-export async function enqueue(input: EnqueueInput, executor?: Executor): Promise<{ job: Job; created: boolean }> {
-  const db = executor ?? getDb();
-  const inserted = await db
-    .insert(jobs)
-    .values({
-      type: input.type,
-      payload: input.payload,
-      idempotencyKey: input.idempotencyKey,
-      projectId: input.projectId ?? null,
-      maxAttempts: input.maxAttempts ?? 3,
-      runAt: input.runAt ?? new Date(),
-    })
-    .onConflictDoNothing({ target: jobs.idempotencyKey })
-    .returning();
-  if (inserted[0]) return { job: inserted[0], created: true };
-  const [existing] = await db.select().from(jobs).where(eq(jobs.idempotencyKey, input.idempotencyKey));
-  return { job: existing, created: false };
-}
-
-/** Atomically claim the next due job. Safe with multiple concurrent workers. */
-export async function claimNext(workerId: string, types?: string[]): Promise<Job | null> {
-  const db = getDb();
-  return db.transaction(async (tx) => {
-    const conditions = [eq(jobs.status, "queued"), lte(jobs.runAt, new Date())];
-    if (types?.length) conditions.push(inArray(jobs.type, types));
-    const [candidate] = await tx
-      .select({ id: jobs.id })
-      .from(jobs)
-      .where(and(...conditions))
-      .orderBy(asc(jobs.runAt), asc(jobs.createdAt))
-      .limit(1)
-      .for("update", { skipLocked: true });
-    if (!candidate) return null;
-    const [claimed] = await tx
-      .update(jobs)
-      .set({
-        status: "running",
-        lockedAt: new Date(),
-        lockedBy: workerId,
-        attempts: sql`${jobs.attempts} + 1`,
-      })
-      .where(eq(jobs.id, candidate.id))
-      .returning();
-    return claimed ?? null;
-  });
-}
-
-/** Only the worker that still holds the lease may finish a job (fencing against double runs). */
-function ownedBy(job: Pick<Job, "id" | "lockedBy">) {
-  return and(eq(jobs.id, job.id), eq(jobs.status, "running"), job.lockedBy ? eq(jobs.lockedBy, job.lockedBy) : sql`false`);
-}
-
-/** Returns false if the lease was lost (another worker took the job over). */
-export async function markSucceeded(job: Pick<Job, "id" | "lockedBy">): Promise<boolean> {
-  const rows = await getDb()
-    .update(jobs)
-    .set({ status: "succeeded", finishedAt: new Date(), lockedAt: null, lockedBy: null, lastError: null })
-    .where(ownedBy(job))
-    .returning({ id: jobs.id });
-  return rows.length > 0;
-}
-
 /** How often a running job refreshes its lease. Must be well below LEASE_MS. */
 export const HEARTBEAT_MS = 60 * 1000;
 
-/**
- * Refresh the lease of a job this worker is still running, so a long but healthy job is never
- * mistaken for an abandoned one and handed to a second worker. Returns false if the lease is lost.
- */
+/** Functions return snake_case columns; map to the drizzle Job shape. */
+export function toJob(r: Record<string, unknown>): Job {
+  const d = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string));
+  return {
+    id: r.id as string,
+    type: r.type as string,
+    payload: (r.payload ?? {}) as Record<string, unknown>,
+    status: r.status as Job["status"],
+    projectId: (r.project_id ?? null) as string | null,
+    idempotencyKey: r.idempotency_key as string,
+    attempts: Number(r.attempts),
+    maxAttempts: Number(r.max_attempts),
+    runAt: d(r.run_at) as Date,
+    lockedAt: d(r.locked_at),
+    lockedBy: (r.locked_by ?? null) as string | null,
+    lastError: (r.last_error ?? null) as string | null,
+    finishedAt: d(r.finished_at),
+    kind: r.kind as string,
+    assignee: (r.assignee ?? null) as string | null,
+    parentJobId: (r.parent_job_id ?? null) as string | null,
+    dependsOn: (r.depends_on ?? []) as string[],
+    priority: Number(r.priority),
+    result: r.result ?? null,
+    createdBy: (r.created_by ?? null) as string | null,
+    channelId: (r.channel_id ?? null) as string | null,
+    createdAt: d(r.created_at) as Date,
+    updatedAt: d(r.updated_at) as Date,
+  };
+}
+
+export function uuidArray(ids: string[] | undefined) {
+  return ids && ids.length ? sql`ARRAY[${sql.join(ids.map((i) => sql`${i}`), sql`, `)}]::uuid[]` : sql`'{}'::uuid[]`;
+}
+
+function textArray(values: string[] | undefined) {
+  return values && values.length ? sql`ARRAY[${sql.join(values.map((v) => sql`${v}`), sql`, `)}]::text[]` : sql`NULL::text[]`;
+}
+
+export async function getJob(id: string): Promise<Job | undefined> {
+  const r = await one(sql`SELECT * FROM jobs WHERE id = ${id}`);
+  return r ? toJob(r) : undefined;
+}
+
+export class ProjectClosedError extends Error {
+  constructor(projectId: string) {
+    super(`Project ${projectId} is cancelled or published; it accepts no new jobs`);
+    this.name = "ProjectClosedError";
+  }
+}
+
+/** The driver wraps Postgres errors ("Failed query: …"); the original is in `cause`. */
+function pgMessage(err: unknown): string {
+  const e = err as { message?: string; cause?: { message?: string } };
+  return `${e?.cause?.message ?? ""} ${e?.message ?? ""}`;
+}
+
+/** Idempotent: enqueueing the same key twice returns the existing job. */
+export async function enqueue(input: EnqueueInput): Promise<{ job: Job; created: boolean }> {
+  try {
+    return await enqueueRaw(input);
+  } catch (err) {
+    if (input.projectId && pgMessage(err).includes("project_closed")) throw new ProjectClosedError(input.projectId);
+    throw err;
+  }
+}
+
+async function enqueueRaw(input: EnqueueInput): Promise<{ job: Job; created: boolean }> {
+  const r = await one<{ job_id: string; created: boolean }>(sql`
+    SELECT * FROM app.enqueue_job(
+      ${input.type}, ${JSON.stringify(input.payload)}::jsonb, ${input.idempotencyKey},
+      ${input.projectId ?? null}::uuid, ${input.kind ?? "cognitive"}, ${input.assignee ?? null},
+      ${uuidArray(input.dependsOn)}, ${input.priority ?? 100}::int, ${input.maxAttempts ?? 3}::int,
+      ${(input.runAt ?? new Date()).toISOString()}::timestamptz, ${input.channelId ?? null}::uuid,
+      ${input.parentJobId ?? null}::uuid, ${input.createdBy ?? null})`);
+  const job = await getJob(r!.job_id);
+  return { job: job!, created: Boolean(r!.created) };
+}
+
+export type ClaimFilter = { kinds?: JobKind[]; types?: string[]; assignee?: string };
+
+export async function claimNext(workerId: string, filter: ClaimFilter = {}): Promise<Job | null> {
+  const r = await one(sql`
+    SELECT * FROM app.claim_job(${workerId}, ${textArray(filter.kinds)}, ${textArray(filter.types)}, ${filter.assignee ?? null})`);
+  return r && r.id ? toJob(r) : null;
+}
+
+/** Returns false if the lease was lost (another worker took the job over). */
+export async function markSucceeded(job: Pick<Job, "id" | "lockedBy">, result?: unknown): Promise<boolean> {
+  const r = await one<{ ok: boolean }>(sql`
+    SELECT app.complete_job(${job.id}, ${job.lockedBy ?? ""}, ${result === undefined ? null : JSON.stringify(result)}::jsonb) AS ok`);
+  return Boolean(r?.ok);
+}
+
 export async function heartbeat(job: Pick<Job, "id" | "lockedBy">): Promise<boolean> {
-  const rows = await getDb().update(jobs).set({ lockedAt: new Date() }).where(ownedBy(job)).returning({ id: jobs.id });
-  return rows.length > 0;
+  const r = await one<{ ok: boolean }>(sql`SELECT app.heartbeat_job(${job.id}, ${job.lockedBy ?? ""}) AS ok`);
+  return Boolean(r?.ok);
 }
 
-/** True while this worker still holds the job's lease (used before saving paid results). */
-export async function stillOwns(job: Pick<Job, "id" | "lockedBy">, executor?: Executor): Promise<boolean> {
-  const rows = await (executor ?? getDb()).select({ id: jobs.id }).from(jobs).where(ownedBy(job));
-  return rows.length > 0;
-}
-
-/** Exponential backoff with jitter: ~30s, ~60s, ~120s ... capped at 1h. */
+/** Exponential backoff with jitter (mirrors app.fail_job): ~30s, ~60s, ~120s … capped at 1h. */
 export function backoffMs(attempt: number, random = Math.random): number {
   const base = Math.min(30_000 * 2 ** Math.max(0, attempt - 1), 60 * 60 * 1000);
   return Math.round(base * (0.8 + random() * 0.4));
 }
 
-/**
- * Record a failure. Returns the resulting status: "queued" (will retry), "dead" (gave up),
- * or "lost" (this worker no longer owns the job, so it changes nothing).
- */
+/** "queued" (retry scheduled), "dead" (gave up) or "lost" (lease no longer ours: changes nothing). */
 export async function markFailed(job: Job, err: unknown): Promise<"queued" | "dead" | "lost"> {
-  const message = errorMessage(err).slice(0, 4000);
-  const permanent = err instanceof NonRetryableError;
-  const exhausted = job.attempts >= job.maxAttempts;
-  const db = getDb();
-  if (permanent || exhausted) {
-    const rows = await db
-      .update(jobs)
-      .set({ status: "dead", lastError: message, finishedAt: new Date(), lockedAt: null, lockedBy: null })
-      .where(ownedBy(job))
-      .returning({ id: jobs.id });
-    return rows.length ? "dead" : "lost";
-  }
-  const delay = err instanceof RetryableError && err.retryAfterMs ? err.retryAfterMs : backoffMs(job.attempts);
-  const rows = await db
-    .update(jobs)
-    .set({ status: "queued", lastError: message, runAt: new Date(Date.now() + delay), lockedAt: null, lockedBy: null })
-    .where(ownedBy(job))
-    .returning({ id: jobs.id });
-  return rows.length ? "queued" : "lost";
+  const retryable = !(err instanceof NonRetryableError);
+  const retryAfter = err instanceof RetryableError && err.retryAfterMs ? err.retryAfterMs : null;
+  const r = await one<{ outcome: "queued" | "dead" | "lost" }>(sql`
+    SELECT app.fail_job(${job.id}, ${job.lockedBy ?? ""}, ${errorMessage(err)}, ${retryable}, ${retryAfter}::int) AS outcome`);
+  return r!.outcome;
 }
 
-/**
- * Handle jobs whose worker disappeared mid-run (lease expired: crash, host timeout, kill).
- * Jobs with attempts left are requeued; jobs that already used every attempt are marked dead,
- * so a job that keeps getting killed cannot loop forever (and keep paying for LLM calls).
- */
-export async function recoverStaleJobs(leaseMs = LEASE_MS): Promise<{ requeued: number; dead: Job[] }> {
-  const db = getDb();
-  const cutoff = new Date(Date.now() - leaseMs);
-  const stale = and(eq(jobs.status, "running"), lt(jobs.lockedAt, cutoff));
-  const dead = await db
-    .update(jobs)
-    .set({
-      status: "dead",
-      lockedAt: null,
-      lockedBy: null,
-      finishedAt: new Date(),
-      lastError: "The worker stopped responding on every attempt (crash or host time limit)",
-    })
-    .where(and(stale, gte(jobs.attempts, jobs.maxAttempts)))
-    .returning();
-  const requeued = await db
-    .update(jobs)
-    .set({ status: "queued", lockedAt: null, lockedBy: null, lastError: "Recovered after lease expiry" })
-    .where(stale)
-    .returning({ id: jobs.id });
-  return { requeued: requeued.length, dead };
+export async function recoverStaleJobs(leaseMs = LEASE_MS): Promise<{ requeued: string[]; dead: string[] }> {
+  const res = await rows<{ job_id: string; outcome: string }>(sql`SELECT * FROM app.recover_stale_jobs(${leaseMs}::int)`);
+  return {
+    requeued: res.filter((r) => r.outcome === "queued").map((r) => r.job_id),
+    dead: res.filter((r) => r.outcome === "dead").map((r) => r.job_id),
+  };
 }
 
-/** Manually retry a dead job (from the UI): resets attempts and schedules it now. */
-export async function retryJob(jobId: string, executor?: Executor): Promise<boolean> {
-  const rows = await (executor ?? getDb())
-    .update(jobs)
-    .set({ status: "queued", attempts: 0, runAt: new Date(), lastError: null, finishedAt: null })
-    .where(and(eq(jobs.id, jobId), inArray(jobs.status, ["dead", "failed"])))
-    .returning({ id: jobs.id });
-  return rows.length > 0;
-}
-
-export async function cancelProjectJobs(projectId: string) {
-  await getDb()
-    .update(jobs)
-    .set({ status: "cancelled", finishedAt: new Date() })
-    .where(and(eq(jobs.projectId, projectId), eq(jobs.status, "queued")));
+export async function retryJob(jobId: string): Promise<boolean> {
+  const r = await one<{ ok: boolean }>(sql`SELECT app.retry_job(${jobId}) AS ok`);
+  return Boolean(r?.ok);
 }
