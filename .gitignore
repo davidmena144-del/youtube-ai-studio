@@ -42,3 +42,8 @@ next-env.d.ts
 
 # allow the template
 !.env.example
+
+# TTS benchmark outputs
+/out/
+/report/
+__pycache__/
