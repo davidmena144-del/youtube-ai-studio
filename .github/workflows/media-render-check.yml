@@ -1,0 +1,60 @@
+name: Media render check
+
+# Renders the fixture Short end to end with the production TTS engine (default SILMA) on the free
+# runner: TTS → cards/photos → music → captions → media QA. No secrets, no upload. Runs on demand
+# and once when this file changes, so the default engine is proven inside the real pipeline.
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: "TTS engine (silma|chatterbox|espeak)"
+        default: "silma"
+  push:
+    paths:
+      - .github/workflows/media-render-check.yml
+
+concurrency:
+  group: media-render-check
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ENGINE: ${{ inputs.engine || vars.TTS_ENGINE || 'silma' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ env.ENGINE }}-v1
+      - name: Install media toolchain
+        run: bash scripts/install-media.sh "$ENGINE"
+      - name: Render the fixture Short
+        working-directory: media
+        run: |
+          set -o pipefail
+          TTS_ENGINE="$ENGINE" ../.venv-media/bin/python -m studio_media.produce --spec fixtures/short_sleep.json --out ../render --photos
+      - name: Result
+        if: always()
+        run: python3 -c "import json;m=json.load(open('render/manifest.json'));print('RENDER', json.dumps({k:m[k] for k in ('engine','engine_license','timing_s','qa')}, ensure_ascii=False))"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: render-check-${{ env.ENGINE }}
+          path: |
+            render/video.mp4
+            render/thumbnail.jpg
+            render/manifest.json
+          retention-days: 7
