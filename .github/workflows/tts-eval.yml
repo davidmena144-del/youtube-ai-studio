@@ -66,7 +66,7 @@ jobs:
           python -m venv .venv && . .venv/bin/activate
           CPU=https://download.pytorch.org/whl/cpu
           case "${{ matrix.engine }}" in
-            silma)
+            silma|silma_fast)
               pip install -q --index-url $CPU torch torchaudio torchvision
               pip install -q silma-tts==1.0.5 soundfile ;;
             chatterbox)
@@ -85,7 +85,7 @@ jobs:
         run: |
           . .venv/bin/activate
           cd media/tts-eval
-          python run.py --engine ${{ matrix.engine }} --out ../../out/${{ matrix.engine }} --threads 2
+          python run.py --engine ${{ matrix.engine }} --out ../../out/${{ matrix.engine }} --threads 2 --time-budget 2700
 
       - name: Engine result
         if: always()

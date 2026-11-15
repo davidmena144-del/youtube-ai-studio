@@ -44,7 +44,11 @@ def load(threads: int):
     return SilmaTTS(device="cpu")
 
 
-def synth(model, text: str):
+NFE_STEPS = 16  # diffusion steps: the main speed/quality lever of F5-TTS-style models
+
+
+def synth(model, text: str, nfe_step: int | None = None):
     ref = str(files("silma_tts").joinpath("infer/ref_audio_samples/ar.ref.24k.wav"))
-    wav, sr, _spec = model.infer(ref_file=ref, ref_text=REF_TEXT, gen_text=text, seed=1234, show_info=lambda *a, **k: None)
+    wav, sr, _spec = model.infer(ref_file=ref, ref_text=REF_TEXT, gen_text=text, seed=1234, nfe_step=nfe_step or NFE_STEPS,
+                                 show_info=lambda *a, **k: None)
     return wav, sr

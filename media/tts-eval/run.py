@@ -24,6 +24,8 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--threads", type=int, default=int(os.environ.get("TTS_THREADS", "2")))
     ap.add_argument("--only", default="")
+    ap.add_argument("--time-budget", type=float, default=float(os.environ.get("TTS_TIME_BUDGET_S", "2400")),
+                    help="stop starting new passages after this many seconds (keeps results under the job timeout)")
     args = ap.parse_args()
 
     # Pin CPU threads before torch/onnxruntime are imported (fair comparison on a 2-vCPU runner).
@@ -53,9 +55,26 @@ def main() -> int:
     res.load_s = round(t.s, 2)
     print(f"[{args.engine}] loaded in {res.load_s}s", flush=True)
 
+    def flush() -> None:
+        ok_ = [s for s in res.samples if s.ok]
+        res.failures = len([s for s in res.samples if not s.ok and not (s.error or "").startswith("skipped:")])
+        res.total_audio_s = round(sum(s.duration_s for s in ok_), 2)
+        res.total_synth_s = round(sum(s.synth_s for s in ok_), 2)
+        res.rtf = round(res.total_synth_s / res.total_audio_s, 3) if res.total_audio_s else None
+        res.peak_ram_mb = peak_rss_mb()
+        (out / "result.json").write_text(res.to_json(), encoding="utf-8")
+
+    import time as _time
+    t_start = _time.monotonic()
     only = {s for s in args.only.split(",") if s}
     for p in load_passages():
         if only and p["id"] not in only:
+            continue
+        if _time.monotonic() - t_start > args.time_budget:
+            res.samples.append(SampleResult(sample_id=p["id"], ok=False, error="skipped: time budget reached"))
+            if "stopped at time budget" not in res.notes:
+                res.notes = (res.notes + "; " if res.notes else "") + f"stopped at time budget {args.time_budget:.0f}s"
+            flush()
             continue
         sr_ = SampleResult(sample_id=p["id"], ok=False)
         try:
@@ -82,15 +101,10 @@ def main() -> int:
             sr_.error = f"{type(e).__name__}: {e}"[:500]
             traceback.print_exc()
         res.samples.append(sr_)
+        flush()  # partial results survive a job timeout
         print(f"[{args.engine}] {p['id']}: ok={sr_.ok} synth={sr_.synth_s}s audio={sr_.duration_s}s rtf={sr_.rtf}", flush=True)
 
-    ok = [s for s in res.samples if s.ok]
-    res.failures = len(res.samples) - len(ok)
-    res.total_audio_s = round(sum(s.duration_s for s in ok), 2)
-    res.total_synth_s = round(sum(s.synth_s for s in ok), 2)
-    res.rtf = round(res.total_synth_s / res.total_audio_s, 3) if res.total_audio_s else None
-    res.peak_ram_mb = peak_rss_mb()
-    (out / "result.json").write_text(res.to_json(), encoding="utf-8")
+    flush()
     print(f"[{args.engine}] RTF={res.rtf} peakRAM={res.peak_ram_mb}MB failures={res.failures}", flush=True)
     return 0
 
