@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { QaReport } from "@/server/agents/types";
 import { artifacts, historyEvents, jobs, projects, publications, stageRuns } from "@/server/db/schema";
 import {
+  cancelProject,
   createProject,
+  onJobDead,
   getProject,
   loadArtifacts,
   requestPublish,
@@ -15,7 +17,7 @@ import { setLlmProviderOverride } from "@/server/providers/llm";
 import type { LlmProvider, StructuredRequest } from "@/server/providers/llm/types";
 import { RetryableError } from "@/server/queue/errors";
 import { updateSettings } from "@/server/settings";
-import { drain } from "@/server/worker/run";
+import { drain, processOne } from "@/server/worker/run";
 import { useTestDb } from "./helpers/db";
 
 let t: Awaited<ReturnType<typeof useTestDb>>;
@@ -154,5 +156,56 @@ describe("Claude Manager pipeline (mock provider)", () => {
     expect(failed.lastError).toContain("503");
     const [job] = await t.db.select().from(jobs).where(eq(jobs.projectId, p.id));
     expect(job.status).toBe("dead");
+  });
+});
+
+describe("review findings regression", () => {
+  it("cancelling while a stage's LLM call is in flight discards the result and stops the pipeline", async () => {
+    const mock = new MockLlmProvider();
+    let projectId = "";
+    const cancelling: LlmProvider = {
+      id: "slow",
+      model: "slow",
+      async generateStructured<T>(req: StructuredRequest<T>) {
+        // The user cancels while the (paid) call is still running.
+        await cancelProject(projectId);
+        return mock.generateStructured(req);
+      },
+    };
+    setLlmProviderOverride(cancelling);
+    const p = await createProject(longInput);
+    projectId = p.id;
+    expect(await processOne("w")).toBe(true);
+    await drain({ deadlineMs: 5_000 });
+
+    const after = (await getProject(p.id))!;
+    expect(after.status).toBe("cancelled");
+    expect(await t.db.select().from(artifacts).where(eq(artifacts.projectId, p.id))).toHaveLength(0);
+    const queued = (await t.db.select().from(jobs).where(eq(jobs.projectId, p.id))).filter((j) => j.status === "queued");
+    expect(queued).toHaveLength(0);
+    const [run] = await t.db.select().from(stageRuns).where(eq(stageRuns.projectId, p.id));
+    expect(run.status).toBe("failed");
+    expect(run.error).toContain("مهملة");
+  });
+
+  it("a job that dies after the project was cancelled does not flip it to failed", async () => {
+    const p = await createProject(longInput);
+    const [job] = await t.db.select().from(jobs).where(eq(jobs.projectId, p.id));
+    await cancelProject(p.id);
+    await onJobDead(job, new Error("late"));
+    expect((await getProject(p.id))!.status).toBe("cancelled");
+  });
+
+  it("two simultaneous review decisions cannot both apply", async () => {
+    const p = await createProject(longInput);
+    await drain({ deadlineMs: 20_000 });
+    const results = await Promise.allSettled([
+      submitReview({ projectId: p.id, decision: "approved" }),
+      submitReview({ projectId: p.id, decision: "changes_requested", notes: "x", restartFromStage: "seo" }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const final = (await getProject(p.id))!;
+    expect(["approved", "changes_requested"]).toContain(final.status);
+    if (final.status === "approved") expect(final.revision).toBe(0);
   });
 });

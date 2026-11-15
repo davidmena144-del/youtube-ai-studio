@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { getDb, type Executor } from "../db/client";
 import { jobs, type Job } from "../db/schema";
 import { errorMessage, NonRetryableError, RetryableError } from "./errors";
@@ -66,11 +66,19 @@ export async function claimNext(workerId: string, types?: string[]): Promise<Job
   });
 }
 
-export async function markSucceeded(jobId: string) {
-  await getDb()
+/** Only the worker that still holds the lease may finish a job (fencing against double runs). */
+function ownedBy(job: Pick<Job, "id" | "lockedBy">) {
+  return and(eq(jobs.id, job.id), eq(jobs.status, "running"), job.lockedBy ? eq(jobs.lockedBy, job.lockedBy) : sql`false`);
+}
+
+/** Returns false if the lease was lost (another worker took the job over). */
+export async function markSucceeded(job: Pick<Job, "id" | "lockedBy">): Promise<boolean> {
+  const rows = await getDb()
     .update(jobs)
     .set({ status: "succeeded", finishedAt: new Date(), lockedAt: null, lockedBy: null, lastError: null })
-    .where(eq(jobs.id, jobId));
+    .where(ownedBy(job))
+    .returning({ id: jobs.id });
+  return rows.length > 0;
 }
 
 /** Exponential backoff with jitter: ~30s, ~60s, ~120s ... capped at 1h. */
@@ -80,36 +88,57 @@ export function backoffMs(attempt: number, random = Math.random): number {
 }
 
 /**
- * Record a failure. Returns the resulting status: "queued" (will retry) or "dead" (gave up).
+ * Record a failure. Returns the resulting status: "queued" (will retry), "dead" (gave up),
+ * or "lost" (this worker no longer owns the job, so it changes nothing).
  */
-export async function markFailed(job: Job, err: unknown): Promise<"queued" | "dead"> {
+export async function markFailed(job: Job, err: unknown): Promise<"queued" | "dead" | "lost"> {
   const message = errorMessage(err).slice(0, 4000);
   const permanent = err instanceof NonRetryableError;
   const exhausted = job.attempts >= job.maxAttempts;
   const db = getDb();
   if (permanent || exhausted) {
-    await db
+    const rows = await db
       .update(jobs)
       .set({ status: "dead", lastError: message, finishedAt: new Date(), lockedAt: null, lockedBy: null })
-      .where(eq(jobs.id, job.id));
-    return "dead";
+      .where(ownedBy(job))
+      .returning({ id: jobs.id });
+    return rows.length ? "dead" : "lost";
   }
   const delay = err instanceof RetryableError && err.retryAfterMs ? err.retryAfterMs : backoffMs(job.attempts);
-  await db
+  const rows = await db
     .update(jobs)
     .set({ status: "queued", lastError: message, runAt: new Date(Date.now() + delay), lockedAt: null, lockedBy: null })
-    .where(eq(jobs.id, job.id));
-  return "queued";
+    .where(ownedBy(job))
+    .returning({ id: jobs.id });
+  return rows.length ? "queued" : "lost";
 }
 
-/** Requeue jobs whose worker disappeared mid-run (lease expired). */
-export async function recoverStaleJobs(leaseMs = LEASE_MS): Promise<number> {
-  const rows = await getDb()
+/**
+ * Handle jobs whose worker disappeared mid-run (lease expired: crash, host timeout, kill).
+ * Jobs with attempts left are requeued; jobs that already used every attempt are marked dead,
+ * so a job that keeps getting killed cannot loop forever (and keep paying for LLM calls).
+ */
+export async function recoverStaleJobs(leaseMs = LEASE_MS): Promise<{ requeued: number; dead: Job[] }> {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - leaseMs);
+  const stale = and(eq(jobs.status, "running"), lt(jobs.lockedAt, cutoff));
+  const dead = await db
+    .update(jobs)
+    .set({
+      status: "dead",
+      lockedAt: null,
+      lockedBy: null,
+      finishedAt: new Date(),
+      lastError: "The worker stopped responding on every attempt (crash or host time limit)",
+    })
+    .where(and(stale, gte(jobs.attempts, jobs.maxAttempts)))
+    .returning();
+  const requeued = await db
     .update(jobs)
     .set({ status: "queued", lockedAt: null, lockedBy: null, lastError: "Recovered after lease expiry" })
-    .where(and(eq(jobs.status, "running"), lt(jobs.lockedAt, new Date(Date.now() - leaseMs))))
+    .where(stale)
     .returning({ id: jobs.id });
-  return rows.length;
+  return { requeued: requeued.length, dead };
 }
 
 /** Manually retry a dead job (from the UI): resets attempts and schedules it now. */

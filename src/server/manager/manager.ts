@@ -1,8 +1,8 @@
-import { and, desc, eq, max } from "drizzle-orm";
+import { and, desc, eq, max, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import { AGENTS } from "../agents";
 import type { AgentContext, AgentDefinition, PipelineArtifacts, QaReport, Seo } from "../agents/types";
-import { getDb } from "../db/client";
+import { getDb, type Executor } from "../db/client";
 import {
   artifacts,
   jobs,
@@ -151,29 +151,40 @@ export async function loadArtifacts(projectId: string): Promise<PipelineArtifact
   };
 }
 
+/** Statuses in which no pipeline stage may run or change the project. */
+const CLOSED_STATUSES: Project["status"][] = ["cancelled", "approved", "publishing", "published"];
+
+/**
+ * SQL condition: the project is still on the revision this job was created for and not closed.
+ * Every write a stage job makes is guarded by it, so a cancelled or revised project can never be
+ * "revived" by a job that was already running when the user acted.
+ */
+function stillCurrent(payload: StagePayload) {
+  return and(
+    eq(projects.id, payload.projectId),
+    eq(projects.revision, payload.revision),
+    eq(projects.autoRevisions, payload.autoRevision),
+    notInArray(projects.status, CLOSED_STATUSES),
+  );
+}
+
+async function recordSkipped(payload: StagePayload, job: Job, reason: string) {
+  await recordHistory({
+    actor: ACTOR,
+    action: "stage.skipped",
+    projectId: payload.projectId,
+    level: "warn",
+    message: `تم تجاهل مهمة مرحلة ${payload.stage}: ${reason}`,
+    data: { jobId: job.id, jobRevision: payload.revision },
+  });
+}
+
 export async function runStageJob(job: Job): Promise<void> {
   const payload = job.payload as unknown as StagePayload;
   if (!isStageId(payload.stage)) throw new NonRetryableError(`Invalid stage in job payload`);
   const db = getDb();
   const project = await getProject(payload.projectId);
   if (!project) throw new NonRetryableError("Project no longer exists");
-
-  // Ignore work that belongs to an older revision or a closed project.
-  if (
-    payload.revision !== project.revision ||
-    payload.autoRevision !== project.autoRevisions ||
-    ["cancelled", "approved", "publishing", "published"].includes(project.status)
-  ) {
-    await recordHistory({
-      actor: ACTOR,
-      action: "stage.skipped",
-      projectId: project.id,
-      level: "warn",
-      message: `تم تجاهل مهمة قديمة لمرحلة ${payload.stage}`,
-      data: { jobId: job.id, jobRevision: payload.revision, projectRevision: project.revision },
-    });
-    return;
-  }
 
   const def = stageDef(project.format, payload.stage);
   const agent = AGENTS[def.agent] as unknown as AgentDefinition<unknown, unknown>;
@@ -188,9 +199,19 @@ export async function runStageJob(job: Job): Promise<void> {
     return;
   }
 
-  await db.update(projects).set({ status: "in_progress", currentStage: def.id }).where(eq(projects.id, project.id));
+  // Claim the stage on the project; refuse if the project was cancelled, approved or revised.
+  const [current] = await db
+    .update(projects)
+    .set({ status: "in_progress", currentStage: def.id })
+    .where(stillCurrent(payload))
+    .returning();
+  if (!current) {
+    await recordSkipped(payload, job, "المشروع أُلغي أو تغيّرت مراجعته");
+    return;
+  }
+
   const settings = await getSettings();
-  const ctx: AgentContext = { project, settings, artifacts: await loadArtifacts(project.id), feedback: payload.feedback };
+  const ctx: AgentContext = { project: current, settings, artifacts: await loadArtifacts(project.id), feedback: payload.feedback };
 
   const [run] = await db
     .insert(stageRuns)
@@ -221,7 +242,20 @@ export async function runStageJob(job: Job): Promise<void> {
     throw err;
   }
 
-  await db.transaction(async (tx) => {
+  const usageFields = {
+    provider: meta.provider,
+    model: meta.model,
+    inputTokens: meta.inputTokens,
+    outputTokens: meta.outputTokens,
+    costUsd: meta.costUsd === null ? null : meta.costUsd.toFixed(6),
+    finishedAt: new Date(),
+    durationMs: Date.now() - started,
+  };
+
+  const saved = await db.transaction(async (tx) => {
+    // Re-check (and lock the project row) after the slow LLM call: the user may have cancelled meanwhile.
+    const [locked] = await tx.update(projects).set({ updatedAt: new Date() }).where(stillCurrent(payload)).returning({ id: projects.id });
+    if (!locked) return false;
     const [{ v }] = await tx
       .select({ v: max(artifacts.version) })
       .from(artifacts)
@@ -234,28 +268,22 @@ export async function runStageJob(job: Job): Promise<void> {
       content: output,
       stageRunId: run.id,
     });
-    await tx
-      .update(stageRuns)
-      .set({
-        status: "succeeded",
-        provider: meta.provider,
-        model: meta.model,
-        inputTokens: meta.inputTokens,
-        outputTokens: meta.outputTokens,
-        costUsd: meta.costUsd === null ? null : meta.costUsd.toFixed(6),
-        finishedAt: new Date(),
-        durationMs: Date.now() - started,
-      })
-      .where(eq(stageRuns.id, run.id));
-    if (def.id === "script") {
-      const title = (output as { workingTitle?: string }).workingTitle;
-      if (title) await tx.update(projects).set({ title: title.slice(0, 100) }).where(eq(projects.id, project.id));
-    }
-    if (def.id === "seo") {
-      const title = (output as Seo).recommendedTitle;
-      if (title) await tx.update(projects).set({ title: title.slice(0, 100) }).where(eq(projects.id, project.id));
-    }
+    await tx.update(stageRuns).set({ status: "succeeded", ...usageFields }).where(eq(stageRuns.id, run.id));
+    const title =
+      def.id === "script" ? (output as { workingTitle?: string }).workingTitle : def.id === "seo" ? (output as Seo).recommendedTitle : undefined;
+    if (title) await tx.update(projects).set({ title: title.slice(0, 100) }).where(eq(projects.id, project.id));
+    return true;
   });
+
+  if (!saved) {
+    // The call was paid for, so keep its usage on record, but discard the output.
+    await db
+      .update(stageRuns)
+      .set({ status: "failed", error: "نتيجة مهملة: أُلغي المشروع أو تغيّرت مراجعته أثناء التنفيذ", ...usageFields })
+      .where(eq(stageRuns.id, run.id));
+    await recordSkipped(payload, job, "أُلغي المشروع أثناء التنفيذ، أُهملت النتيجة");
+    return;
+  }
 
   await recordHistory({
     actor: `agent:${agent.id}`,
@@ -276,8 +304,12 @@ async function advanceAfterStage(project: Project, payload: StagePayload, arts: 
   const next = nextStage(project.format, payload.stage);
   if (next) {
     await db.transaction(async (tx) => {
-      await tx.update(projects).set({ currentStage: next.id, status: "in_progress" }).where(eq(projects.id, project.id));
-      await enqueueStage(project, next.id, payload.feedback, tx);
+      const [row] = await tx
+        .update(projects)
+        .set({ currentStage: next.id, status: "in_progress" })
+        .where(stillCurrent(payload))
+        .returning();
+      if (row) await enqueueStage(row, next.id, payload.feedback, tx);
     });
     return;
   }
@@ -290,12 +322,17 @@ async function advanceAfterStage(project: Project, payload: StagePayload, arts: 
       ...qa.checks.filter((c) => !c.passed && c.severity !== "minor").map((c) => c.message),
       ...qa.issues.filter((i) => i.severity !== "minor").map((i) => `${i.description} — ${i.suggestion}`),
     ];
-    const [updated] = await db
-      .update(projects)
-      .set({ autoRevisions: project.autoRevisions + 1, currentStage: "script", status: "in_progress" })
-      .where(eq(projects.id, project.id))
-      .returning();
-    await enqueueStage(updated, "script", feedback.length ? feedback : [qa.summary]);
+    // Counter bump and the rewrite job are written atomically, so a crash cannot strand the project.
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(projects)
+        .set({ autoRevisions: payload.autoRevision + 1, currentStage: "script", status: "in_progress" })
+        .where(stillCurrent(payload))
+        .returning();
+      if (row) await enqueueStage(row, "script", feedback.length ? feedback : [qa.summary], tx);
+      return row;
+    });
+    if (!updated) return;
     await recordHistory({
       actor: ACTOR,
       action: "qa.auto_revision",
@@ -307,10 +344,12 @@ async function advanceAfterStage(project: Project, payload: StagePayload, arts: 
     return;
   }
 
-  await db
+  const [ready] = await db
     .update(projects)
     .set({ status: "awaiting_review", currentStage: null, lastError: null })
-    .where(eq(projects.id, project.id));
+    .where(stillCurrent(payload))
+    .returning({ id: projects.id });
+  if (!ready) return;
   await recordHistory({
     actor: ACTOR,
     action: "review.requested",
@@ -325,16 +364,27 @@ async function advanceAfterStage(project: Project, payload: StagePayload, arts: 
 /** Called by the worker when a job exhausted its retries or failed permanently. */
 export async function onJobDead(job: Job, err: unknown) {
   if (!job.projectId) return;
+  const db = getDb();
   const message = errorMessage(err).slice(0, 1000);
   if (job.type === JOB_PUBLISH) {
-    const key = (job.payload as { publicationId?: string }).publicationId;
-    if (key) await getDb().update(publications).set({ status: "failed", error: message }).where(eq(publications.id, key));
-    await getDb()
+    const publicationId = (job.payload as { publicationId?: string }).publicationId;
+    if (publicationId) {
+      await db
+        .update(publications)
+        .set({ status: "failed", error: message })
+        .where(and(eq(publications.id, publicationId), notInArray(publications.status, ["succeeded"])));
+    }
+    // Only roll back a project that is still waiting on this publication.
+    await db
       .update(projects)
       .set({ status: "approved", lastError: `فشل النشر: ${message}` })
-      .where(eq(projects.id, job.projectId));
+      .where(and(eq(projects.id, job.projectId), eq(projects.status, "publishing")));
   } else {
-    await getDb().update(projects).set({ status: "failed", lastError: message }).where(eq(projects.id, job.projectId));
+    // A dead job from an older revision, or for a cancelled/closed project, must not mark it failed.
+    await db
+      .update(projects)
+      .set({ status: "failed", lastError: message })
+      .where(stillCurrent(job.payload as unknown as StagePayload));
   }
   await recordHistory({
     actor: ACTOR,
@@ -356,6 +406,20 @@ export const ReviewInput = z.object({
   restartFromStage: z.enum(["research", "script", "direction", "seo", "qa"]).optional(),
 });
 
+/**
+ * Apply a review decision only if the project is still awaiting review on the same revision.
+ * Two simultaneous decisions (double tap, two devices) cannot both apply: the loser gets an error.
+ */
+async function claimReview(tx: Executor, project: Project, set: Partial<typeof projects.$inferInsert>) {
+  const [row] = await tx
+    .update(projects)
+    .set(set)
+    .where(and(eq(projects.id, project.id), eq(projects.status, "awaiting_review"), eq(projects.revision, project.revision)))
+    .returning();
+  if (!row) throw new UserFacingError("تغيّرت حالة المشروع للتو — حدّث الصفحة");
+  return row;
+}
+
 export async function submitReview(raw: z.infer<typeof ReviewInput>) {
   const input = ReviewInput.parse(raw);
   const project = await mustGetProject(input.projectId);
@@ -363,8 +427,8 @@ export async function submitReview(raw: z.infer<typeof ReviewInput>) {
 
   if (input.decision === "approved") {
     await getDb().transaction(async (tx) => {
+      await claimReview(tx, project, { status: "approved" });
       await tx.insert(reviews).values({ projectId: project.id, revision: project.revision, decision: "approved", notes: input.notes });
-      await tx.update(projects).set({ status: "approved" }).where(eq(projects.id, project.id));
     });
     await recordHistory({ actor: "user", action: "review.approved", projectId: project.id, message: "تمت الموافقة على المحتوى" });
     return;
@@ -373,6 +437,12 @@ export async function submitReview(raw: z.infer<typeof ReviewInput>) {
   if (!input.notes) throw new UserFacingError("اكتب ملاحظاتك ليعمل عليها الوكلاء");
   const from = input.restartFromStage ?? "script";
   await getDb().transaction(async (tx) => {
+    const updated = await claimReview(tx, project, {
+      status: "changes_requested",
+      revision: project.revision + 1,
+      autoRevisions: 0,
+      currentStage: from,
+    });
     await tx.insert(reviews).values({
       projectId: project.id,
       revision: project.revision,
@@ -380,11 +450,6 @@ export async function submitReview(raw: z.infer<typeof ReviewInput>) {
       notes: input.notes,
       restartFromStage: from,
     });
-    const [updated] = await tx
-      .update(projects)
-      .set({ status: "changes_requested", revision: project.revision + 1, autoRevisions: 0, currentStage: from })
-      .where(eq(projects.id, project.id))
-      .returning();
     await enqueueStage(updated, from, [input.notes!], tx);
   });
   await recordHistory({
@@ -413,6 +478,22 @@ export async function retryProject(projectId: string) {
   await retryJob(dead.id);
   await getDb().update(projects).set({ status: "queued", lastError: null }).where(eq(projects.id, projectId));
   await recordHistory({ actor: "user", action: "job.retried", projectId, entityType: "job", entityId: dead.id, message: "إعادة محاولة يدوية" });
+}
+
+/** Retry one dead job from the jobs page. Publish jobs are excluded on purpose (see retryProject). */
+export async function retryJobById(jobId: string) {
+  if (!z.string().uuid().safeParse(jobId).success) throw new UserFacingError("معرّف مهمة غير صالح");
+  const [job] = await getDb().select().from(jobs).where(eq(jobs.id, jobId));
+  if (!job) throw new UserFacingError("المهمة غير موجودة");
+  if (job.type === JOB_PUBLISH) throw new UserFacingError("لإعادة النشر استخدم زر النشر من صفحة المشروع بعد مراجعة سبب الفشل");
+  if (!(await retryJob(jobId))) throw new UserFacingError("لا يمكن إعادة هذه المهمة");
+  if (job.projectId) {
+    await getDb()
+      .update(projects)
+      .set({ status: "queued", lastError: null })
+      .where(and(eq(projects.id, job.projectId), eq(projects.status, "failed")));
+  }
+  await recordHistory({ actor: "user", action: "job.retried", projectId: job.projectId, entityType: "job", entityId: jobId, message: "إعادة مهمة يدويًا" });
 }
 
 export async function cancelProject(projectId: string) {
@@ -498,6 +579,12 @@ export async function runPublishJob(job: Job) {
   const [pub] = await db.select().from(publications).where(eq(publications.id, publicationId));
   if (!pub) throw new NonRetryableError("Publication record not found");
   if (pub.status === "succeeded") return; // idempotent: never publish twice
+  if (pub.status === "failed") throw new NonRetryableError("This publication attempt was closed as failed — request publishing again");
+  // A previous attempt reached the upload step and then crashed. For a live upload the video may
+  // already exist on YouTube, so never upload blindly again: a human must verify first.
+  if (pub.status === "uploading" && pub.mode === "live") {
+    throw new NonRetryableError("A previous upload attempt was interrupted. Check the channel before retrying to avoid a duplicate video.");
+  }
   const project = await mustGetProject(pub.projectId);
   const arts = await loadArtifacts(project.id);
   if (!arts.seo) throw new NonRetryableError("SEO metadata is missing");

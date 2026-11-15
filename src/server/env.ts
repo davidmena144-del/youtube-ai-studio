@@ -4,20 +4,24 @@ import { z } from "zod";
  * Environment configuration. Validated lazily (on first use) so that
  * `next build` and unit tests do not require production secrets.
  *
+ * - env():     what every process needs (web app AND worker).
+ * - authEnv(): login/session secrets — only the web app needs them, so the worker
+ *              never has to hold SESSION_SECRET (which could forge an admin cookie).
+ *
  * Secrets are read ONLY here, never sent to the browser, never logged.
  */
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
-  SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
+  SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters").optional(),
   ADMIN_PASSWORD_HASH: z.string().optional(),
   ADMIN_PASSWORD: z.string().min(10, "ADMIN_PASSWORD must be at least 10 characters").optional(),
 
   /** base64-encoded 32 bytes. Required only when encrypted secrets are stored (phase 3). */
   ENCRYPTION_KEY: z.string().optional(),
 
-  /** auto = anthropic if ANTHROPIC_API_KEY is set, otherwise mock. */
+  /** auto = anthropic if ANTHROPIC_API_KEY is set, otherwise mock. Set it explicitly in production. */
   LLM_PROVIDER: z.enum(["auto", "mock", "anthropic"]).default("auto"),
   ANTHROPIC_API_KEY: z.string().optional(),
 
@@ -35,22 +39,37 @@ const EnvSchema = z.object({
 });
 
 export type Env = z.infer<typeof EnvSchema>;
+export type AuthEnv = { SESSION_SECRET: string; ADMIN_PASSWORD_HASH?: string; ADMIN_PASSWORD?: string };
 
 let cached: Env | null = null;
+
+function fail(message: string): never {
+  throw new Error(`Invalid environment configuration: ${message}`);
+}
 
 export function env(): Env {
   if (cached) return cached;
   const parsed = EnvSchema.safeParse(process.env);
   if (!parsed.success) {
     // Only report variable names and messages — never values.
-    const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-    throw new Error(`Invalid environment configuration: ${issues}`);
-  }
-  if (!parsed.data.ADMIN_PASSWORD_HASH && !parsed.data.ADMIN_PASSWORD) {
-    throw new Error("Invalid environment configuration: set ADMIN_PASSWORD_HASH (preferred) or ADMIN_PASSWORD");
+    fail(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
   }
   cached = parsed.data;
   return cached;
+}
+
+/** Login configuration. There is no default password: a missing or unsafe setup refuses to start. */
+export function authEnv(): AuthEnv {
+  const e = env();
+  if (!e.SESSION_SECRET) fail("SESSION_SECRET is required for the web app");
+  if (e.NODE_ENV === "production") {
+    if (!e.ADMIN_PASSWORD_HASH) {
+      fail("ADMIN_PASSWORD_HASH is required in production (plain ADMIN_PASSWORD is accepted only in development)");
+    }
+    return { SESSION_SECRET: e.SESSION_SECRET, ADMIN_PASSWORD_HASH: e.ADMIN_PASSWORD_HASH };
+  }
+  if (!e.ADMIN_PASSWORD_HASH && !e.ADMIN_PASSWORD) fail("set ADMIN_PASSWORD_HASH (preferred) or ADMIN_PASSWORD");
+  return { SESSION_SECRET: e.SESSION_SECRET, ADMIN_PASSWORD_HASH: e.ADMIN_PASSWORD_HASH, ADMIN_PASSWORD: e.ADMIN_PASSWORD };
 }
 
 /** For tests only. */

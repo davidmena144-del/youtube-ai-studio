@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { logoutAction } from "@/app/actions";
+import { logoutAction, revokeAllSessionsAction } from "@/app/actions";
 import { Card, PageHeader } from "@/components/ui";
 
 export const metadata: Metadata = { title: "المزيد" };
@@ -27,6 +27,12 @@ export default function MorePage() {
         <button type="submit" className="w-full rounded-xl border border-line bg-surface py-3 font-medium">
           تسجيل الخروج
         </button>
+      </form>
+      <form action={revokeAllSessionsAction} className="mt-3">
+        <button type="submit" className="w-full rounded-xl border border-tone-red-fg/30 py-3 font-medium text-tone-red-fg">
+          تسجيل الخروج من جميع الأجهزة
+        </button>
+        <p className="mt-1 text-center text-xs text-muted">استخدمه إن فقدت هاتفك أو شككت في تسريب الجلسة</p>
       </form>
     </>
   );

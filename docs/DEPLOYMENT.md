@@ -1,40 +1,56 @@
 # النشر السحابي (من الموبايل، بدون كمبيوتر)
 
 > لم يُنشأ أي حساب أو مورد سحابي حتى الآن. الخطوات أدناه تُنفذ بموافقتك، وكلها ضمن طبقات مجانية.
-> يمكنك أيضًا أن تطلب من Claude Code تنفيذ الخطوات التي تدعمها أدواته (مثل Vercel و Supabase) بعد موافقتك.
+> ما اختُبر فعليًا وما لم يُختبر: راجع [`REVIEW-PHASE1.md`](REVIEW-PHASE1.md).
 
-## 1. قاعدة البيانات (اختر واحدة)
+## ما تحتاجه (كله مجاني)
 
-- **Neon** (neon.tech): أنشئ مشروعًا → انسخ "Pooled connection string".
-- **Supabase** (supabase.com): أنشئ مشروعًا → Project Settings → Database → Connection string (Transaction pooler، المنفذ 6543).
-  ملاحظة: مشاريع Supabase المجانية تتوقف بعد أسبوع بلا نشاط ويمكن إعادة تشغيلها من اللوحة.
+| # | الخدمة | الغرض | ما يُنسخ منها |
+|---|---|---|---|
+| 1 | GitHub (موجود) | الكود + CI + الـ Worker | — |
+| 2 | Neon **أو** Supabase | PostgreSQL | `DATABASE_URL` (رابط الـ pooler) |
+| 3 | Vercel (Hobby) | الواجهة | رابط التطبيق |
+| 4 | Anthropic Console (اختياري، مدفوع حسب الاستخدام) | محتوى حقيقي | `ANTHROPIC_API_KEY` |
 
-هذا هو `DATABASE_URL`.
+## 0. شرط مسبق: دمج الفرع في `main`
+
+GitHub لا يشغّل workflow الـ Worker (المجدول أو اليدوي) إلا من الفرع الافتراضي. ادمج هذا الفرع في `main` بعد مراجعتك (Pull Request من تطبيق GitHub على الموبايل).
+
+## 1. قاعدة البيانات
+
+- **Neon**: أنشئ مشروعًا → انسخ *Pooled connection string*.
+- **Supabase**: Project Settings → Database → Connection string → *Transaction pooler* (المنفذ 6543).
+  مشاريع Supabase المجانية تتوقف بعد أسبوع بلا نشاط وتُعاد من اللوحة.
 
 ## 2. الأسرار
 
-من جلسة Claude Code اطلب: "ولّد الأسرار" (يشغّل `npm run gen-secrets` و `npm run hash-password`).
-احتفظ بالقيم في مدير كلمات مرور. لا تلصقها في أي ملف داخل المستودع.
+اطلب من Claude Code: «ولّد الأسرار». سيشغّل `npm run gen-secrets` و `npm run hash-password -- "<كلمة مرور طويلة تختارها>"`.
+احفظ القيم في مدير كلمات مرور. **في الإنتاج يجب استخدام `ADMIN_PASSWORD_HASH`؛ التطبيق يرفض كلمة المرور النصية.**
 
-## 3. الواجهة على Vercel (Hobby — مجاني للاستخدام الشخصي)
+## 3. الواجهة على Vercel
 
-1. vercel.com → Add New Project → استورد هذا المستودع من GitHub.
-2. Environment Variables: `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_PASSWORD_HASH`، واختياريًا `ANTHROPIC_API_KEY`, `CRON_SECRET`, `ENCRYPTION_KEY`.
-3. Deploy. ثم افتح الرابط على Android → قائمة المتصفح → "إضافة إلى الشاشة الرئيسية".
+1. vercel.com → Add New Project → استورد المستودع.
+2. Environment Variables (Production):
+   - `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_PASSWORD_HASH` — إلزامية
+   - `LLM_PROVIDER` = `mock` أو `anthropic` (اضبطها صراحةً، وبنفس القيمة في GitHub)
+   - `ANTHROPIC_API_KEY` — فقط إن كان `LLM_PROVIDER=anthropic`
+   - `CRON_SECRET`, `ENCRYPTION_KEY` — اختيارية الآن
+3. Deploy. ثم على Android: افتح الرابط في Chrome → ⋮ → «إضافة إلى الشاشة الرئيسية».
 
-الـ migrations تُطبق عبر GitHub Actions (الخطوة 4) أو بتشغيل `npm run db:migrate` من جلسة Claude Code مع `DATABASE_URL`.
+## 4. الـ Worker على GitHub Actions
 
-## 4. الـ Worker على GitHub Actions (مجاني)
+Settings → Secrets and variables → Actions:
+- **Secrets**: `DATABASE_URL` (إلزامي)، `ANTHROPIC_API_KEY` (إن استخدمت Claude). لا يحتاج الـ Worker إلى `SESSION_SECRET` ولا كلمة المرور.
+- **Variables**: `WORKER_ENABLED=true`، `LLM_PROVIDER=mock|anthropic`.
 
-1. GitHub → Settings → Secrets and variables → Actions:
-   - Secrets: `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_PASSWORD_HASH`، واختياريًا `ANTHROPIC_API_KEY`, `ENCRYPTION_KEY`.
-   - Variables: `WORKER_ENABLED` = `true`.
-2. Actions → Worker → Run workflow (للتشغيل الفوري)، ويعمل تلقائيًا كل ساعتين.
+ثم Actions → Worker → Run workflow. يطبّق الـ migrations ثم يعالج الطابور، ويعمل تلقائيًا كل ساعتين.
 
-**بدائل** للمعالجة الأسرع:
-- استدعاء `GET /api/worker/tick` مع ترويسة `Authorization: Bearer <CRON_SECRET>` من مُجدول مجاني مثل cron-job.org (كل 5 دقائق). كل استدعاء يعالج حتى ~45 ثانية من المهام.
-- حاوية دائمة (Render / Fly / Railway، ~5–7$ شهريًا) بالـ `Dockerfile` الموجود: `npm run worker`.
+**بدائل أسرع:**
+- حاوية دائمة بالـ `Dockerfile` (Render/Fly/Railway، ~5–7$ شهريًا — لن أنشئها دون موافقتك): `npm run worker`.
+- `GET /api/worker/tick` مع `Authorization: Bearer <CRON_SECRET>` من مُجدول مجاني. **مناسب لوضع mock فقط**: مرحلة Claude حقيقية قد تتجاوز حد 60 ثانية للدالة.
 
-## 5. تفعيل Claude (اختياري — مدفوع حسب الاستخدام)
+## 5. التحقق بعد النشر
 
-أضف `ANTHROPIC_API_KEY` في Vercel وفي GitHub Secrets. لوحة الإعدادات ستعرض "مُعدّ — لم يُختبر" حتى تنجح أول مرحلة فعليًا، ثم "مُختبر ويعمل". ابدأ بمشروع Short قصير لاختبار التكلفة، ويمكنك اختيار Haiku من الإعدادات لأقل تكلفة.
+1. `https://<app>/api/health` يجب أن يعيد `{"ok":true,"db":true}`.
+2. سجّل الدخول، أنشئ Short، شغّل Worker يدويًا، وتأكد أن المشروع يصل إلى «بانتظار مراجعتك».
+3. صفحة الإعدادات: Claude يظهر «مُعدّ — لم يُختبر» حتى تنجح أول مرحلة فعلًا، ثم «مُختبر ويعمل».

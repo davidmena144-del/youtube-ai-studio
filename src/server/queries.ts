@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, lt, lte, sql, sum } from "drizzle-orm";
+import { requireAdmin } from "./auth";
 import { getDb } from "./db/client";
 import {
   historyEvents,
@@ -14,6 +15,7 @@ import { loadArtifacts } from "./manager/manager";
 import { resolveLlmProviderId } from "./providers/llm";
 
 export async function dashboardStats() {
+  await requireAdmin();
   const db = getDb();
   const byStatus = await db.select({ status: projects.status, n: count() }).from(projects).groupBy(projects.status);
   const jobsByStatus = await db
@@ -46,6 +48,7 @@ export async function dashboardStats() {
 }
 
 export async function listProjects(opts: { status?: ProjectStatus[]; limit?: number } = {}) {
+  await requireAdmin();
   const db = getDb();
   const where = opts.status?.length ? inArray(projects.status, opts.status) : undefined;
   return db
@@ -57,6 +60,7 @@ export async function listProjects(opts: { status?: ProjectStatus[]; limit?: num
 }
 
 export async function projectDetail(id: string) {
+  await requireAdmin();
   const db = getDb();
   const [project] = await db.select().from(projects).where(eq(projects.id, id));
   if (!project) return null;
@@ -76,6 +80,7 @@ export async function projectDetail(id: string) {
 }
 
 export async function listHistory(opts: { beforeId?: number; limit?: number; level?: "warn" | "error" } = {}) {
+  await requireAdmin();
   const conditions = [];
   if (opts.beforeId) conditions.push(lt(historyEvents.id, opts.beforeId));
   if (opts.level === "error") conditions.push(eq(historyEvents.level, "error"));
@@ -90,6 +95,7 @@ export async function listHistory(opts: { beforeId?: number; limit?: number; lev
 }
 
 export async function listJobs(limit = 100) {
+  await requireAdmin();
   return getDb()
     .select({ job: jobs, projectTitle: projects.title })
     .from(jobs)
@@ -107,6 +113,7 @@ export function calendarWindow(offset: number) {
 }
 
 export async function calendarItems(from: Date, to: Date) {
+  await requireAdmin();
   return getDb()
     .select()
     .from(projects)
@@ -118,6 +125,7 @@ export type ProviderState = "active" | "configured_untested" | "tested" | "missi
 
 /** Honest integration status: nothing is reported as working until it has actually succeeded. */
 export async function providerStatus() {
+  await requireAdmin();
   const db = getDb();
   const llmId = resolveLlmProviderId();
   const [lastAnthropic] = await db

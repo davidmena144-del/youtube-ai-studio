@@ -8,13 +8,20 @@ on:
 permissions:
   contents: read
 
+# A push to a branch with an open PR triggers both events; keep only the newest run per ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -23,3 +30,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Fails the build if a production dependency has a known high/critical vulnerability.
+      - run: npm audit --omit=dev --audit-level=high

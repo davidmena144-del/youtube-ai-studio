@@ -5,19 +5,19 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { ZodError } from "zod";
 import { zonedLocalToUtc } from "@/lib/format";
-import { login, logout, requireAdmin } from "@/server/auth";
+import { login, logout, requireAdmin, revokeAllSessions } from "@/server/auth";
 import { env } from "@/server/env";
 import { recordHistory } from "@/server/history";
 import {
   cancelProject,
   createProject,
   requestPublish,
+  retryJobById,
   retryProject,
   scheduleProject,
   submitReview,
   UserFacingError,
 } from "@/server/manager/manager";
-import { retryJob } from "@/server/queue/queue";
 import { AppSettingsSchema, getSettings, updateSettings } from "@/server/settings";
 import { drain } from "@/server/worker/run";
 
@@ -57,6 +57,12 @@ export async function loginAction(_prev: ActionState, fd: FormData): Promise<Act
 
 export async function logoutAction() {
   await logout();
+  redirect("/login");
+}
+
+export async function revokeAllSessionsAction() {
+  await requireAdmin();
+  await revokeAllSessions();
   redirect("/login");
 }
 
@@ -166,10 +172,11 @@ export async function scheduleAction(_prev: ActionState, fd: FormData): Promise<
 
 export async function retryJobAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   await requireAdmin();
-  const jobId = str(fd, "jobId") ?? "";
-  const ok = await retryJob(jobId);
-  if (!ok) return { error: "لا يمكن إعادة هذه المهمة" };
-  await recordHistory({ actor: "user", action: "job.retried", entityType: "job", entityId: jobId, message: "إعادة مهمة يدويًا" });
+  try {
+    await retryJobById(str(fd, "jobId") ?? "");
+  } catch (err) {
+    return { error: toMessage(err) };
+  }
   kickWorker();
   revalidatePath("/jobs");
   return { ok: "أعيدت المهمة إلى الطابور" };

@@ -46,7 +46,7 @@ describe("job queue", () => {
     expect(await retryJob(j.id)).toBe(true);
     j = (await claimNext("w"))!;
     expect(j.attempts).toBe(1);
-    await markSucceeded(j.id);
+    expect(await markSucceeded(j)).toBe(true);
     const [done] = await t.db.select().from(jobs).where(eq(jobs.id, j.id));
     expect(done.status).toBe("succeeded");
   });
@@ -67,8 +67,38 @@ describe("job queue", () => {
     await enqueue({ type: "x", payload: {}, idempotencyKey: "stale" });
     const j = (await claimNext("w"))!;
     await t.db.update(jobs).set({ lockedAt: new Date(Date.now() - 60 * 60 * 1000) }).where(eq(jobs.id, j.id));
-    expect(await recoverStaleJobs()).toBe(1);
+    expect((await recoverStaleJobs()).requeued).toBe(1);
     expect((await claimNext("w2"))?.id).toBe(j.id);
+  });
+
+  it("marks a job dead instead of looping when its worker keeps getting killed", async () => {
+    await enqueue({ type: "x", payload: {}, idempotencyKey: "killed", maxAttempts: 2 });
+    for (let i = 1; i <= 2; i++) {
+      const j = (await claimNext(`w${i}`))!;
+      expect(j.attempts).toBe(i);
+      // The host kills the process: nothing calls markFailed, only the lease expires.
+      await t.db.update(jobs).set({ lockedAt: new Date(Date.now() - 60 * 60 * 1000) }).where(eq(jobs.id, j.id));
+      const r = await recoverStaleJobs();
+      if (i === 1) expect(r.requeued).toBe(1);
+      else expect(r.dead.map((d) => d.id)).toEqual([j.id]);
+    }
+    const [row] = await t.db.select().from(jobs);
+    expect(row.status).toBe("dead");
+    expect(await claimNext("w3")).toBeNull();
+  });
+
+  it("fences finished work: a worker that lost its lease cannot overwrite the new owner", async () => {
+    await enqueue({ type: "x", payload: {}, idempotencyKey: "fence" });
+    const a = (await claimNext("worker-a"))!;
+    await t.db.update(jobs).set({ lockedAt: new Date(Date.now() - 60 * 60 * 1000) }).where(eq(jobs.id, a.id));
+    await recoverStaleJobs();
+    const b = (await claimNext("worker-b"))!;
+    expect(await markSucceeded(a)).toBe(false); // stale worker A finishes late
+    expect(await markFailed(a, new Error("late failure"))).toBe("lost");
+    const [mid] = await t.db.select().from(jobs);
+    expect(mid.status).toBe("running");
+    expect(mid.lockedBy).toBe("worker-b");
+    expect(await markSucceeded(b)).toBe(true);
   });
 
   it("backoff grows and is capped", () => {

@@ -11,7 +11,8 @@ const PAGE = 50;
 
 export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ before?: string; level?: string }> }) {
   const sp = await searchParams;
-  const beforeId = Number(sp.before) || undefined;
+  const before = Number(sp.before);
+  const beforeId = Number.isSafeInteger(before) && before > 0 ? before : undefined;
   const level = sp.level === "warn" || sp.level === "error" ? sp.level : undefined;
   const [rows, settings] = await Promise.all([listHistory({ beforeId, level, limit: PAGE }), getSettings()]);
   const qs = (extra: Record<string, string | undefined>) => {
