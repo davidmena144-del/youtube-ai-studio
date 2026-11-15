@@ -43,3 +43,33 @@ jobs:
       - name: CLI smoke
         run: DATABASE_URL=postgres://unused npm run studio -- help | grep -q "studio <command>"
       - run: npm audit --omit=dev --audit-level=high
+
+  media:
+    # Real render of both formats through the full free pipeline (espeak TTS for speed in CI;
+    # production uses the TTS engine chosen in Phase 2). Fails unless media QA passes.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: bash scripts/install-media.sh espeak
+      - name: Render Short + long-form, QA must pass
+        working-directory: media
+        run: |
+          for f in short_sleep long_house_of_wisdom; do
+            TTS_ENGINE=espeak ../.venv-media/bin/python -m studio_media.produce --spec fixtures/$f.json --out ../render/$f
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-renders
+          path: |
+            render/*/video.mp4
+            render/*/thumbnail.jpg
+            render/*/manifest.json
+          retention-days: 3

@@ -1,0 +1,5 @@
+# Media pipeline (all open source). TTS engine packages are installed separately per engine.
+numpy<2.0
+pillow>=10.2
+soundfile>=0.12
+fonttools>=4.50

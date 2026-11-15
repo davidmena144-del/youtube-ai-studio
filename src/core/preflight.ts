@@ -1,10 +1,11 @@
-import { activePolicy, getChannel, isPaused } from "./channel";
+import { one, sql } from "../server/db/client";
+import { getChannel } from "./channel";
 import { paidProviderEnvPresent } from "./cost-guard";
-import { quotaUsed, recordQuota } from "./ops";
 
 /**
- * Run before every manager run (and by the console). Any failed check aborts the run before a
- * single model call is made.
+ * Run before every manager run. Any failed check aborts the run before a single model call.
+ * The checks live in SQL (app.preflight / app.budget / app.spend_model_call) so a Claude session
+ * using the database connector gets exactly the same answers as the CLI.
  */
 export type Preflight = {
   ok: boolean;
@@ -14,40 +15,16 @@ export type Preflight = {
 };
 
 export async function preflight(env: NodeJS.ProcessEnv = process.env): Promise<Preflight> {
-  const reasons: string[] = [];
   const paid = paidProviderEnvPresent(env);
-  if (paid.length) reasons.push(`paid-provider credentials present: ${paid.join(", ")}`);
-
+  const extra = paid.length ? [`paid-provider credentials present: ${paid.join(", ")}`] : [];
   const ch = await getChannel();
-  if (!ch) return { ok: false, reasons: [...reasons, "no channel configured"] };
-  if (await isPaused(ch.id)) reasons.push("channel paused (kill switch)");
-
-  const { policy } = await activePolicy(ch.id);
-  const dailyUsed = await quotaUsed("claude.model_calls", "day", ch.timeZone);
-  const weeklyUsed = await quotaUsed("claude.model_calls", "week", ch.timeZone);
-  const budget = {
-    perRun: policy.max_model_calls_per_run,
-    dailyLeft: Math.max(0, policy.daily_model_call_budget - dailyUsed),
-    weeklyLeft: Math.max(0, policy.weekly_model_call_budget - weeklyUsed),
-  };
-  if (budget.dailyLeft === 0) reasons.push("daily model-call budget exhausted");
-  if (budget.weeklyLeft === 0) reasons.push("weekly model-call budget exhausted");
-
-  return { ok: reasons.length === 0, reasons, channelId: ch.id, budget };
+  if (!ch) return { ok: false, reasons: [...extra, "no channel configured"] };
+  const r = (await one<{ p: Preflight }>(sql`SELECT app.preflight(${ch.id}::uuid) AS p`))!.p;
+  const reasons = [...extra, ...r.reasons];
+  return { ...r, ok: reasons.length === 0, reasons };
 }
 
-/**
- * Reserve one specialist invocation against the weekly and daily budgets. Must be called (and
- * return allowed) before spawning any subagent. Weekly is checked first so a refused call never
- * consumes the daily budget.
- */
+/** Reserve one specialist invocation; a refusal consumes nothing from either window. */
 export async function spendModelCall(channelId: string): Promise<{ allowed: boolean; reason?: string }> {
-  const ch = await getChannel(channelId);
-  const { policy } = await activePolicy(channelId);
-  const tz = ch?.timeZone ?? "UTC";
-  const week = await recordQuota("claude.model_calls", "week", 1, policy.weekly_model_call_budget, tz);
-  if (!week.allowed) return { allowed: false, reason: "weekly model-call budget exhausted" };
-  const day = await recordQuota("claude.model_calls", "day", 1, policy.daily_model_call_budget, tz);
-  if (!day.allowed) return { allowed: false, reason: "daily model-call budget exhausted" };
-  return { allowed: true };
+  return (await one<{ r: { allowed: boolean; reason?: string } }>(sql`SELECT app.spend_model_call(${channelId}::uuid) AS r`))!.r;
 }

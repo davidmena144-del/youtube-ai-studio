@@ -14,6 +14,7 @@ import traceback
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # media/: shared engines package
 from common import EngineResult, SampleResult, Timer, host_info, load_passages, peak_rss_mb, split_text  # noqa: E402
 
 

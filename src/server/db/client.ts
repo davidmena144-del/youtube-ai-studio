@@ -1,6 +1,8 @@
 import { neon } from "@neondatabase/serverless";
 import { sql as sqlTag, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
+import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
 
@@ -16,7 +18,7 @@ import * as schema from "./schema";
  */
 export type DB = Omit<PgDatabase<PgQueryResultHKT, typeof schema>, "transaction">;
 
-type GlobalWithDb = typeof globalThis & { __ytsDb?: DB };
+type GlobalWithDb = typeof globalThis & { __ytsDb?: DB; __ytsPg?: ReturnType<typeof postgres> };
 const g = globalThis as GlobalWithDb;
 
 export class InteractiveTransactionError extends Error {
@@ -46,10 +48,27 @@ export function databaseUrl(): string {
   return url;
 }
 
+/** Neon hosts use the HTTPS driver (works from Claude sessions); any other Postgres (Supabase
+ * pooler, local) uses a TCP connection. Both are guarded identically: no interactive transactions. */
 export function getDb(): DB {
   if (g.__ytsDb) return g.__ytsDb;
-  g.__ytsDb = guard(drizzle(neon(databaseUrl()), { schema }));
+  const url = databaseUrl();
+  if (/\.neon\.tech(:|\/|$)/.test(new URL(url).host + "/") || process.env.DB_DRIVER === "neon-http") {
+    g.__ytsDb = guard(drizzle(neon(url), { schema }));
+  } else {
+    // prepare:false: required behind Supabase's transaction pooler (port 6543).
+    g.__ytsPg = postgres(url, { max: 3, prepare: false, onnotice: () => {} });
+    g.__ytsDb = guard(drizzlePg(g.__ytsPg, { schema }));
+  }
   return g.__ytsDb;
+}
+
+/** Close a TCP pool so short-lived processes (worker, CLI) can exit. No-op for HTTP. */
+export async function closeDb(): Promise<void> {
+  const pg = g.__ytsPg;
+  g.__ytsPg = undefined;
+  g.__ytsDb = undefined;
+  if (pg) await pg.end({ timeout: 5 });
 }
 
 /** Tests inject an in-memory PGlite database here. */

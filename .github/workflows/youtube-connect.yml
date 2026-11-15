@@ -1,0 +1,36 @@
+name: YouTube connect
+
+# One-time: link the channel. Run manually, open the job log (or summary), go to the shown URL on
+# your phone and enter the code. The refresh token is stored encrypted in the database.
+# Secrets: DATABASE_URL, ENCRYPTION_KEY, YT_CLIENT_ID, YT_CLIENT_SECRET.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev
+      - run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+      - name: Device authorisation (watch this step's log for the code)
+        run: node --import tsx scripts/youtube-connect.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}

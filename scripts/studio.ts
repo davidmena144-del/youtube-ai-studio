@@ -3,6 +3,7 @@
  * Used by the scheduled manager, the specialist subagents and the owner's chat console.
  */
 import { runCli } from "../src/cli/studio";
+import { closeDb } from "../src/server/db/client";
 import { managerEnv } from "../src/server/env";
 
 async function main() {
@@ -12,7 +13,9 @@ async function main() {
   process.exitCode = code;
 }
 
-main().catch((err) => {
-  process.stdout.write(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }) + "\n");
-  process.exitCode = 1;
-});
+main()
+  .catch((err) => {
+    process.stdout.write(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }) + "\n");
+    process.exitCode = 1;
+  })
+  .finally(() => closeDb().catch(() => {}));

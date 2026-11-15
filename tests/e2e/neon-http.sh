@@ -31,6 +31,7 @@ for _ in $(seq 50); do curl -s -o /dev/null "http://127.0.0.1:4444" -d '{}' && b
 MGR="postgres://e2e_manager:e2e-manager-local-only@ep-local.neon.test/$DB"
 WKR="postgres://e2e_worker:e2e-worker-local-only@ep-local.neon.test/$DB"
 export NODE_OPTIONS="--import ./tests/e2e/neon-preload.mjs"
+export DB_DRIVER=neon-http
 
 # studio <expected exit> <args...>: runs the CLI as the manager role, checks the exit code.
 studio() {
@@ -71,5 +72,18 @@ ok "worker (app_worker role) drained 1 job over HTTP"
 set +e; OUTK=$(DATABASE_URL=$WKR ANTHROPIC_API_KEY=not-a-real-key node --import tsx scripts/worker.ts 2>&1); code=$?; set -e
 [ "$code" != "0" ] && echo "$OUTK" | grep -q "Refusing to run" || fail "worker started with a paid-provider key present"
 ok "worker refuses to start with a paid-provider key"
+
+# Same worker over a plain Postgres TCP connection (Supabase-style URL, least-privilege role).
+TCP="postgres://e2e_worker:e2e-worker-local-only@localhost:5432/$DB"
+psql "$OWNER_URL" -qtAc "select app.enqueue_job('system.noop', '{\"n\":2}', 'e2e-n2', p_kind => 'system')" >/dev/null
+CHECK=$(env -u NODE_OPTIONS -u DB_DRIVER DATABASE_URL=$TCP node --import tsx scripts/worker.ts --check 2>&1)
+echo "$CHECK" | grep -q "pending=1" || fail "worker --check over TCP: $CHECK"
+ok "worker --check over TCP sees 1 pending job"
+OUTT=$(env -u NODE_OPTIONS -u DB_DRIVER DATABASE_URL=$TCP WORKER_TIME_BUDGET_MS=60000 WORKER_MIN_REMAINING_MS=5000 node --import tsx scripts/worker.ts 2>&1)
+echo "$OUTT" | grep -q "processed 1 job" || fail "worker over TCP: $OUTT"
+ok "worker over TCP drained 1 job"
+USED=$(psql "$OWNER_URL" -qtAc "select coalesce(sum(used),0)::int from quota_ledger where provider='gha.minutes'")
+[ "$USED" -ge 1 ] || fail "worker did not record minutes used ($USED)"
+ok "worker recorded its free-minutes usage ($USED)"
 
 echo "neon-http e2e: $pass checks passed"
