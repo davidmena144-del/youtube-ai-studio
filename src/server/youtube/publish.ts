@@ -49,7 +49,7 @@ export async function youtubeFromStore(cfg: YtConfig, env = process.env): Promis
 export function buildDescription(seo: Seo, manifest: Manifest, marker: string): string {
   const parts = [seo.description.trim()];
   if (manifest.attributions.length) parts.push("—\nمصادر الصور:\n" + manifest.attributions.map((a) => `• ${a}`).join("\n"));
-  parts.push("—\nهذا الفيديو منتج بمساعدة أدوات الذكاء الاصطناعي (صوت ومرئيات مولّدة).");
+  parts.push("—\nهذا الفيديو منتج بمساعدة أدوات الذكاء الاصطناعي.");
   parts.push(`[${marker}]`); // crash-safe dedupe marker (findByMarker)
   return parts.join("\n\n");
 }
