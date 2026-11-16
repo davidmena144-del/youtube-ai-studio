@@ -1,0 +1,53 @@
+{
+  "format": "short",
+  "title": "لماذا نتثاءب؟ وهل التثاؤب معدٍ فعلًا؟",
+  "thumbnail_text": "لماذا نتثاءب؟",
+  "music_mood": "mysterious",
+  "segments": [
+    {
+      "text": "هل تثاءبتَ الآن لمجرد أنك سمعتَ كلمة تثاؤب؟ لستَ وحدك.",
+      "on_screen": "هل تثاءبتَ الآن؟",
+      "photo_query": "person yawning close up"
+    },
+    {
+      "text": "لسنوات، ظنّ كثيرون أننا نتثاءب لنحصل على مزيد من الأكسجين.",
+      "on_screen": "خرافة الأكسجين؟",
+      "photo_query": "deep breath fresh air"
+    },
+    {
+      "text": "لكن تجارب العالِم بروفاين عام ألفٍ وتسعمئةٍ وسبعةٍ وثمانين لم تؤيد ذلك. فالهواء الغني بالأكسجين لم يقلل التثاؤب.",
+      "on_screen": "الأكسجين ليس السبب",
+      "photo_query": "oxygen mask laboratory experiment"
+    },
+    {
+      "text": "واليوم، تقول إحدى أبرز الفرضيات إن التثاؤب قد يساعد على تبريد الدماغ.",
+      "on_screen": "فرضية: تبريد الدماغ",
+      "photo_query": "human brain illustration cool blue"
+    },
+    {
+      "text": "والمدهش أن التثاؤب معدٍ فعلًا. رؤيته أو سماعه أو حتى القراءة عنه قد تجعلك تتثاءب.",
+      "on_screen": "التثاؤب معدٍ حقًا",
+      "photo_query": "people yawning together"
+    },
+    {
+      "text": "وتزداد عدواه بين الأشخاص المقرّبين عاطفيًا.",
+      "on_screen": "أقوى بين المقرّبين",
+      "photo_query": "close friends family together"
+    },
+    {
+      "text": "بل إن الجنين يتثاءب في رحم أمه، وقد رُصد ذلك بالموجات فوق الصوتية منذ نهاية الأشهر الثلاثة الأولى من الحمل.",
+      "on_screen": "الجنين يتثاءب أيضًا",
+      "photo_query": "pregnancy ultrasound scan"
+    },
+    {
+      "text": "وحتى الكلاب تتثاءب، وتشير دراسات إلى أنها قد تلتقط التثاؤب من البشر.",
+      "on_screen": "الكلاب قد تلتقط العدوى",
+      "photo_query": "dog yawning"
+    },
+    {
+      "text": "هل تثاءبتَ وأنت تشاهد؟ أخبرنا في التعليقات، وتابعنا لمزيد من أسرار الجسم.",
+      "on_screen": "هل تثاءبت؟ أخبرنا!",
+      "photo_query": "smiling person phone comments"
+    }
+  ]
+}
