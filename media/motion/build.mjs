@@ -1,0 +1,18 @@
+// build.mjs: inline the fonts (base64 @font-face) into a motion page so rendering never falls back.
+//   node build.mjs page.html out.html
+// Fonts are OFL/Bitstream-licensed system fonts installed by scripts/install-media.sh (fonts-lemonada,
+// fonts-noto-core) plus DejaVu Sans Mono.
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+const [, , src, out] = process.argv;
+const pick = (...paths) => { const p = paths.find(existsSync); if (!p) throw new Error("font not found: " + paths.join(" | ")); return p; };
+const FONTS = [
+  ["Lemonada", 600, pick("/usr/share/fonts/opentype/lemonada/Lemonada-SemiBold.otf"), "opentype"],
+  ["Kufi", 700, pick("/usr/share/fonts/truetype/noto/NotoKufiArabic-Bold.ttf"), "truetype"],
+  ["Kufi", 400, pick("/usr/share/fonts/truetype/noto/NotoKufiArabic-Regular.ttf"), "truetype"],
+  ["Mono", 400, pick("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"), "truetype"],
+];
+const css = FONTS.map(([fam, w, p, fmt]) => `@font-face{font-family:"${fam}";font-weight:${w};src:url(data:font/${fmt === "opentype" ? "otf" : "ttf"};base64,${readFileSync(p).toString("base64")}) format("${fmt}")}`).join("\n");
+const html = readFileSync(src, "utf8");
+if (!html.includes("/*@FONTS@*/")) throw new Error("page has no /*@FONTS@*/ placeholder");
+writeFileSync(out, html.replace("/*@FONTS@*/", css));
+console.log("built", out, (Buffer.byteLength(css) / 1024).toFixed(0) + " KB of fonts");

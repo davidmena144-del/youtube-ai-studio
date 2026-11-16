@@ -1,5 +1,5 @@
 /**
- * Owner-approved PRIVATE test upload (always private — this script cannot publish).
+ * Owner-approved test upload: PRIVATE unless UPLOAD_PRIVACY=public is set by the manual workflow input.
  *   node --import tsx scripts/youtube-test-upload.ts <render_dir> [seo.json] [marker]
  * Re-running with the same marker never uploads a second video: the existing one is verified instead.
  */
@@ -13,12 +13,13 @@ import { youtubeFromStore, ytConfigFromEnv, type Seo } from "../src/server/youtu
 async function main() {
   workerEnv();
   const [dir, seoFile, marker = "ys:test:private-test"] = process.argv.slice(2);
+  const privacy = process.env.UPLOAD_PRIVACY === "public" ? "public" : "private";
   if (!dir) throw new Error("usage: youtube-test-upload <render_dir> [seo.json] [marker]");
   const seo: Seo = seoFile
     ? (JSON.parse(await readFile(seoFile, "utf8")) as Seo)
     : { title: "[اختبار خاص] فيديو تجريبي", description: "فيديو اختبار تقني خاص — لا يُنشر.", tags: ["test"] };
   const yt = await youtubeFromStore(ytConfigFromEnv());
-  const r = await privateTestUpload(yt, { dir, seo, marker });
+  const r = await privateTestUpload(yt, { dir, seo, marker, privacy });
   console.log(JSON.stringify({ ok: true, ...r }, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) {
     appendFileSync(
