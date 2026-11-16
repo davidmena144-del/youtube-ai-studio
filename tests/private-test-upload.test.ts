@@ -64,6 +64,22 @@ describe("owner-approved private test upload", () => {
   });
 });
 
+describe("owner-chosen public upload (manual workflow only)", () => {
+  it("public is sent only when asked, never with publishAt; captions wait for processing; no thumbnail file → no call", async () => {
+    const { rmSync } = await import("node:fs");
+    rmSync(path.join(dir, "thumbnail.jpg"));
+    fake.state.processedAfterReads = 1;
+    const r = await privateTestUpload(yt(), { dir, seo, marker: "ys:test:body24h", sleep: noSleep, privacy: "public" });
+    expect(r).toMatchObject({ privacy: "public", publishAt: null, uploadStatus: "processed" });
+    expect(fake.state.videos[0].resource.status.privacyStatus).toBe("public");
+    expect(fake.state.videos[0].resource.status.publishAt).toBeUndefined();
+    expect(fake.state.thumbnails.size).toBe(0);
+    expect(r.notes).toContain("captions: Arabic track added");
+    const slow = await privateTestUpload(yt(), { dir, seo, marker: "ys:test:slow-one", sleep: noSleep, waitMs: 0 });
+    expect(slow.privacy).toBe("private"); // default stays private
+  });
+});
+
 describe("owner-requested deletion of a test video", () => {
   it("deletes only this project's ys:test upload on this channel, and verifies it is gone", async () => {
     const { deleteOwnTestVideo } = await import("@/server/youtube/delete-test-video");

@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>جسمك في 24 ساعة</title>
+<style>
+/*@FONTS@*/
+html,body{margin:0;background:#0B0B10;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:#0B0B10;transform-origin:0 0}
+.layer{position:absolute;inset:0}
+.abs{position:absolute;white-space:nowrap}
+.c{left:0;right:0;text-align:center}
+.kufi{font-family:"Kufi",sans-serif}
+.kufi{padding:40px 0}
+.mono{font-family:"Mono",monospace;direction:ltr}
+#hud{position:absolute;inset:0;pointer-events:none;color:#fff;opacity:.5;font-size:24px}
+#hud .br{position:absolute;width:56px;height:56px;border-color:#fff;border-style:solid;opacity:.8}
+#grain,#vig{position:absolute;inset:0;pointer-events:none}
+#vig{background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(0,0,0,.42) 100%)}
+canvas{position:absolute;left:0;top:0}
+#ui{position:fixed;left:8px;bottom:8px;z-index:9;font:14px sans-serif;color:#fff;direction:ltr}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg" class="layer"></div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+  <svg id="art" class="layer" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+  <div id="txt" class="layer"></div>
+  <div id="vig"></div>
+  <canvas id="grain" width="1080" height="1920"></canvas>
+  <div id="hud">
+    <div class="br" style="left:48px;top:150px;border-width:3px 0 0 3px"></div>
+    <div class="br" style="right:48px;top:150px;border-width:3px 3px 0 0"></div>
+    <div class="br" style="left:48px;bottom:330px;border-width:0 0 3px 3px"></div>
+    <div class="br" style="right:48px;bottom:330px;border-width:0 3px 3px 0"></div>
+    <div id="hudScene" class="abs mono" style="right:120px;top:166px"></div>
+    <div id="hudCat" class="abs mono" style="left:120px;bottom:346px"></div>
+    <div id="hudTc" class="abs mono" style="right:120px;bottom:346px"></div>
+  </div>
+</div>
+<div id="ui"></div>
+<script>
+/* Beat sheet — 120 BPM (beat = 0.5 s), 33 s, 9:16. Facts fact-checked (WebSearch) — sources in the video description.
+ 0.00  spark: crimson dot on dark grid, heartbeat thumps at 0.5/1.0          | thump x2
+ 1.00  dot stretches into an ECG line across the frame (BODY / 24H)          | riser 1.0→2.0
+ 1.75  line floods the screen crimson                                         | impact 2.0
+ 2.00  title slam «جسمك» + «في 24 ساعة» (mask wipe RTL), kicker              | kick+clap start
+ 4.25  the dot of the title grows into a dark circle → scene 3 background    | whoosh 4.5
+ 4.50  HEART: beating heart, count 0→100,000 «نبضة يوميًا»                   | lub-dub on beats
+ 8.75  cream bar wipes up from the bottom                                     | whoosh 9.0
+ 9.00  BREATH: breathing rings, count 0→20,000 «نَفَس يوميًا»                | breath swells
+12.75  rings collapse into a dot = the pupil of the eye                       | whoosh 13.0
+13.00  BLINK: eye blinks on beats, count 0→15,000 «رمشة يوميًا» (blue)       | blink ticks
+16.75  final blink closes to black                                           | impact 17.0
+17.00  BLOOD CELLS: particle stream, count 0→2,000,000, «كل ثانية!» slam     | hats, impact 19.5
+21.25  cells pour down into a tank                                           | whoosh 21.5
+21.50  PUMP: tank fills, count 0→7,500 «لتر يوميًا»                          | liquid swell
+25.25  liquid floods up                                                      | impact 25.5
+25.50  VESSELS: line wraps the Earth 2.5 times, «100,000 كم»                 | whoosh, sub
+29.50  END: «وكل هذا… دون أن تشعر!» + follow line + sources note, hold       | riser, ring-out
+*/
+const VIDEO = { w: 1080, h: 1920, duration: 33 };
+window.VIDEO = VIDEO;
+const BEAT = 0.5;
+const INK = "#0B0B10", RED = "#E8323C", CREAM = "#EDEBE4", BLUE = "#2F47FF", WHITE = "#FFFFFF";
+
+function spring(t, w = 14, z = 0.82) { if (t <= 0) return 0; if (z >= 1) return 1 - Math.exp(-w * t) * (1 + w * t); const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); }
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOut = x => 1 - Math.pow(1 - clamp(x), 4);
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const rng = s => () => (s = (s + 0x6D2B79F5) | 0, s = Math.imul(s ^ (s >>> 15), 1 | s), s ^= s + Math.imul(s ^ (s >>> 7), 61 | s), ((s ^ (s >>> 14)) >>> 0) / 4294967296);
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const pulse = (t, period, w = 18) => { const k = ((t % period) + period) % period; return Math.exp(-w * k); };
+
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const bg = $("bg"), art = $("art"), txt = $("txt"), fx = $("fx").getContext("2d");
+
+// ---------- elements (created once, positioned by seek) ----------
+function el(tag, cls, html, parent = txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; }
+function svg(tag, attrs, parent = art) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; }
+
+const T = {}; // text nodes
+T.kick = el("div", "abs c kufi");      // small line above titles
+T.big = el("div", "abs c kufi");        // slam headline
+T.sub = el("div", "abs c kufi");       // line under headline
+T.label = el("div", "abs c kufi");     // «قلبك ينبض حوالي»
+T.num = el("div", "abs c kufi");       // count-up
+T.unit = el("div", "abs c kufi");      // unit
+T.extra = el("div", "abs c kufi");      // «كل ثانية!»
+T.note = el("div", "abs c kufi");      // small footnote
+T.label2 = el("div", "abs mono");      // ECG label
+for (const k in T) Object.assign(T[k].style, { opacity: 0 });
+
+// grid + ECG + flood
+const gridG = svg("g", { opacity: 0 });
+for (let x = 0; x <= 1080; x += 90) svg("line", { x1: x, y1: 0, x2: x, y2: 1920, stroke: "#fff", "stroke-opacity": .06, "stroke-width": 2 }, gridG);
+for (let y = 0; y <= 1920; y += 90) svg("line", { x1: 0, y1: y, x2: 1080, y2: y, stroke: "#fff", "stroke-opacity": .06, "stroke-width": 2 }, gridG);
+const ecgPts = (() => { const p = []; for (let x = 0; x <= 1080; x += 6) { const u = (x % 360) / 360; let y = 0; if (u > .40 && u < .44) y = -22 * Math.sin((u - .40) / .04 * Math.PI); else if (u > .47 && u < .49) y = 18 * (u - .47) / .02; else if (u >= .49 && u < .53) y = 18 - 200 * Math.sin((u - .49) / .04 * Math.PI); else if (u >= .53 && u < .56) y = 46 * (1 - (u - .53) / .03); else if (u > .62 && u < .70) y = -36 * Math.sin((u - .62) / .08 * Math.PI); p.push([x, y]); } return p; })();
+const ecg = svg("polyline", { fill: "none", stroke: RED, "stroke-width": 7, "stroke-linejoin": "round", "stroke-linecap": "round" });
+const dot = svg("circle", { cx: 540, cy: 960, r: 0, fill: RED });
+const flood = svg("rect", { x: 0, y: 960, width: 1080, height: 0, fill: RED });
+const disc = svg("circle", { cx: 540, cy: 960, r: 0, fill: INK });
+
+// heart
+const HEART = "M0,-60 C-20,-110 -110,-100 -110,-25 C-110,40 -40,80 0,120 C40,80 110,40 110,-25 C110,-100 20,-110 0,-60 Z";
+const heartG = svg("g", { opacity: 0 });
+const heartGlow = svg("path", { d: HEART, fill: RED, opacity: .18 }, heartG);
+const heart = svg("path", { d: HEART, fill: RED }, heartG);
+const heartShine = svg("path", { d: "M-70,-55 C-70,-80 -40,-88 -25,-70", fill: "none", stroke: "#fff", "stroke-opacity": .55, "stroke-width": 9, "stroke-linecap": "round" }, heartG);
+const ecg2 = svg("polyline", { fill: "none", stroke: RED, "stroke-opacity": .35, "stroke-width": 5 });
+
+// wipe bar (cream rising)
+const wipe = svg("rect", { x: 0, y: 1920, width: 1080, height: 0, fill: CREAM });
+
+// breath rings
+const breathG = svg("g", { opacity: 0 });
+const rings = [0, 1, 2].map(i => svg("circle", { cx: 540, cy: 720, r: 100, fill: "none", stroke: BLUE, "stroke-width": 10 - i * 3, opacity: 1 - i * .3 }, breathG));
+const breathCore = svg("circle", { cx: 540, cy: 720, r: 60, fill: BLUE }, breathG);
+
+// eye
+const eyeG = svg("g", { opacity: 0 });
+const eyeWhite = svg("path", { d: "", fill: WHITE }, eyeG);
+const iris = svg("circle", { cx: 540, cy: 720, r: 120, fill: INK }, eyeG);
+const irisRing = svg("circle", { cx: 540, cy: 720, r: 120, fill: "none", stroke: "#8EA0FF", "stroke-width": 14 }, eyeG);
+const pupil = svg("circle", { cx: 540, cy: 720, r: 52, fill: "#000" }, eyeG);
+const glint = svg("circle", { cx: 585, cy: 675, r: 20, fill: WHITE }, eyeG);
+const lidTop = svg("path", { d: "", fill: BLUE }, eyeG);
+const lidBot = svg("path", { d: "", fill: BLUE }, eyeG);
+const eyeLine = svg("path", { d: "", fill: "none", stroke: WHITE, "stroke-width": 10, "stroke-linecap": "round" }, eyeG);
+const blackout = svg("rect", { x: 0, y: 0, width: 1080, height: 1920, fill: INK, opacity: 0 });
+
+// tank
+const tankG = svg("g", { opacity: 0 });
+const tankClip = svg("clipPath", { id: "tc" }, svg("defs", {}));
+svg("rect", { x: 340, y: 400, width: 400, height: 600, rx: 70 }, tankClip);
+const liquid = svg("path", { d: "", fill: RED, "clip-path": "url(#tc)" }, tankG);
+const liquid2 = svg("path", { d: "", fill: "#B71F2A", "clip-path": "url(#tc)", opacity: .8 }, tankG);
+const tankRect = svg("rect", { x: 340, y: 400, width: 400, height: 600, rx: 70, fill: "none", stroke: CREAM, "stroke-width": 10 }, tankG);
+const ticks = [0, 1, 2, 3, 4].map(i => svg("line", { x1: 700, x2: 740, y1: 490 + i * 105, y2: 490 + i * 105, stroke: CREAM, "stroke-width": 6, opacity: .6 }, tankG));
+const flood2 = svg("rect", { x: 0, y: 1920, width: 1080, height: 0, fill: RED });
+
+// globe + vessel orbit
+const globeG = svg("g", { opacity: 0 });
+const globe = svg("circle", { cx: 540, cy: 720, r: 230, fill: "#121A3A", stroke: CREAM, "stroke-width": 6 }, globeG);
+const meridians = [0.35, 0.7, 1].map(k => svg("ellipse", { cx: 540, cy: 720, rx: 230 * k, ry: 230, fill: "none", stroke: CREAM, "stroke-opacity": .25, "stroke-width": 3 }, globeG));
+const parallels = [-120, 0, 120].map(dy => svg("ellipse", { cx: 540, cy: 720 + dy, rx: Math.sqrt(230 * 230 - dy * dy), ry: 24, fill: "none", stroke: CREAM, "stroke-opacity": .2, "stroke-width": 3 }, globeG));
+const orbit = svg("path", { d: "", fill: "none", stroke: RED, "stroke-width": 9, "stroke-linecap": "round" }, globeG);
+const orbitHead = svg("circle", { cx: 0, cy: 0, r: 16, fill: RED }, globeG);
+
+// end card rule
+const rule = svg("line", { x1: 540, x2: 540, y1: 1060, y2: 1060, stroke: INK, "stroke-width": 4 });
+
+// ---------- baked particle field (blood cells) ----------
+const cells = (() => { const r = rng(7), a = []; for (let i = 0; i < 140; i++) a.push({ lane: r(), speed: 0.55 + r() * 0.6, phase: r(), size: 22 + r() * 22, tilt: r() * Math.PI, spin: (r() - .5) * 2 }); return a; })();
+function vesselY(u, lane) { return 640 + (lane - .5) * 420 + Math.sin(u * Math.PI * 2 + lane * 3) * 110; }
+function drawCells(t, a) {
+  const k = seg(t, 17, 17.6), out = seg(t, 21.0, 21.5);
+  if (a <= 0) return;
+  fx.save(); fx.globalAlpha = a * (1 - 0.6 * seg(t, 19.4, 19.7));
+  for (const c of cells) {
+    const u = ((c.phase + (t - 17) * c.speed * 0.32) % 1 + 1) % 1;
+    let x = 1180 - u * 1280, y = vesselY(u, c.lane);
+    if (out > 0) { x = lerp(x, 540 + (c.lane - .5) * 300, ease(out)); y = lerp(y, 960, ease(out)); }
+    const s = c.size * (0.4 + 0.6 * spring(t - 17 - c.phase * .5, 10, .7)) * (1 - out * .6);
+    fx.save(); fx.translate(x, y); fx.rotate(c.tilt + c.spin * (t - 17));
+    fx.fillStyle = "#C81E2A"; fx.beginPath(); fx.ellipse(0, 0, s, s * 0.62, 0, 0, Math.PI * 2); fx.fill();
+    fx.fillStyle = "#7E0F18"; fx.beginPath(); fx.ellipse(0, 0, s * .45, s * .26, 0, 0, Math.PI * 2); fx.fill();
+    fx.fillStyle = "rgba(255,255,255,.25)"; fx.beginPath(); fx.ellipse(-s * .3, -s * .18, s * .25, s * .1, -.4, 0, Math.PI * 2); fx.fill();
+    fx.restore();
+  }
+  fx.restore();
+}
+
+// ---------- grain tiles ----------
+const grainTiles = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 14; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
+const gctx = $("grain").getContext("2d");
+
+// ---------- helpers ----------
+function show(node, text, style, a) { if (text != null && node._t !== text) { node.textContent = text; node._t = text; } Object.assign(node.style, style); node.style.opacity = a; }
+function slamIn(t, t0, dur = .35) { const k = spring(t - t0, 16, .62); return { s: lerp(1.35, 1, k), a: clamp((t - t0) / .12), y: (1 - k) * 40 }; }
+function maskRTL(node, t, t0, d) { const k = ease(seg(t, t0, t0 + d)); node.style.clipPath = `inset(0 0 0 ${(1 - k) * 100}%)`; }
+function countBlock(t, t0, t1, from, to, label, unit, color, labelColor) {
+  const inA = clamp((t - t0) / .25), outA = 1 - clamp((t - (t1 - .35)) / .3), a = Math.min(inA, outA);
+  const k = easeOut(seg(t, t0 + .25, t0 + 2.6));
+  const landed = t > t0 + 2.6;
+  const blur = landed ? 0 : (1 - k) * 6 * (k > 0 ? 1 : 0);
+  const pop = landed ? 1 + 0.08 * Math.exp(-10 * (t - t0 - 2.6)) * Math.cos(28 * (t - t0 - 2.6)) : 1;
+  const l = slamIn(t, t0 + .05);
+  show(T.label, label, { top: "1060px", fontSize: "64px", fontWeight: 700, color: labelColor, transform: `translateY(${l.y}px)` }, a);
+  show(T.num, fmt(lerp(from, to, k)), { top: "1130px", fontSize: "176px", fontWeight: 700, color, letterSpacing: "2px", filter: blur > .3 ? `blur(${blur.toFixed(1)}px)` : "none", transform: `scale(${pop})`, direction: "ltr" }, a);
+  const u = slamIn(t, t0 + 2.6);
+  show(T.unit, unit, { top: "1380px", fontSize: "66px", fontWeight: 700, color: labelColor, transform: `translateY(${u.y}px) scale(${u.s})` }, Math.min(a, u.a));
+}
+function hide(...nodes) { for (const n of nodes) n.style.opacity = 0; }
+
+const SCENES = [[0, "01", "PULSE"], [2, "02", "TITLE"], [4.5, "03", "HEART"], [9, "04", "BREATH"], [13, "05", "EYES"], [17, "06", "BLOOD"], [21.5, "07", "PUMP"], [25.5, "08", "VESSELS"], [29.5, "09", "END"]];
+
+// ---------- seek ----------
+function seek(t) {
+  t = clamp(t, 0, VIDEO.duration - 1e-6);
+  const sc = [...SCENES].reverse().find(s => t >= s[0]);
+  $("hudScene").textContent = `SCENE ${sc[1]} / 09`;
+  $("hudCat").textContent = `BODY / 24H — ${sc[2]}`;
+  const fr = Math.floor(t * 30) % 30, ss = Math.floor(t);
+  $("hudTc").innerHTML = `<span style="color:${RED}">●</span> 00:00:${String(ss).padStart(2, "0")}:${String(fr).padStart(2, "0")}`;
+  $("hud").style.color = (t >= 9 && t < 13) || t >= 29.5 ? INK : WHITE;
+  hide(...Object.values(T));
+  for (const k in T) { T[k].style.filter = "none"; T[k].style.clipPath = "none"; T[k].style.transform = "none"; }
+
+  // base background per scene
+  let base = INK;
+  if (t >= 2 && t < 4.5) base = RED;
+  if (t >= 9 && t < 13) base = CREAM;
+  if (t >= 13 && t < 17) base = BLUE;
+  if (t >= 29.5) base = CREAM;
+  bg.style.background = base;
+
+  // ---- S1 spark + ECG + flood (0–2) and title (2–4.5)
+  gridG.setAttribute("opacity", t < 2 ? 1 : 0);
+  if (t < 2) {
+    const d = spring(t - .15, 18, .55) * (1 + 0.35 * pulse(t - .5, .5, 14) * (t < 1.1 ? 1 : 0));
+    const stretch = ease(seg(t, 1.0, 1.55));
+    dot.setAttribute("r", (t < 1.0 ? 22 * d : 22 * (1 - stretch)).toFixed(2));
+    const n = Math.floor(ecgPts.length * stretch);
+    ecg.setAttribute("points", ecgPts.slice(0, Math.max(n, 1)).map(([x, y]) => `${x},${960 + y * (1 - seg(t, 1.6, 1.8))}`).join(" "));
+    ecg.setAttribute("opacity", t < 1.0 ? 0 : 1);
+    const fl = ease(seg(t, 1.72, 2.0));
+    flood.setAttribute("y", 960 - 960 * fl); flood.setAttribute("height", 1920 * fl + 6);
+    show(T.label2, "BODY / 24H", { top: "1010px", left: "60px", fontSize: "28px", color: WHITE }, clamp((t - 1.2) / .2) * (1 - fl));
+  } else { dot.setAttribute("r", 0); ecg.setAttribute("opacity", 0); flood.setAttribute("height", 0); }
+
+  if (t >= 2 && t < 4.75) {
+    const out = seg(t, 4.2, 4.5);
+    const k1 = slamIn(t, 2.05);
+    show(T.kick, "في يومٍ واحد فقط…", { top: "620px", fontSize: "58px", fontWeight: 700, color: CREAM, transform: `translateY(${k1.y}px)` }, k1.a * (1 - out));
+    const b = slamIn(t, 2.5);
+    show(T.big, "جسمك", { top: "640px", fontSize: "280px", fontWeight: 700, color: WHITE, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a * (1 - out));
+    maskRTL(T.big, t, 2.5, .45);
+    const s = slamIn(t, 3.0);
+    show(T.sub, "يعمل بلا توقّف", { top: "1180px", fontSize: "84px", fontWeight: 700, color: INK, transform: `translateY(${s.y}px)` }, s.a * (1 - out));
+    maskRTL(T.sub, t, 3.0, .4);
+    const g = ease(seg(t, 4.15, 4.5));
+    disc.setAttribute("r", (1200 * g).toFixed(1)); disc.setAttribute("cy", 960);
+  } else disc.setAttribute("r", 0);
+
+  // ---- S3 heart (4.5–9)
+  if (t >= 4.5 && t < 9) {
+    const a = clamp((t - 4.5) / .3);
+    const beat = pulse(t - 4.5, BEAT, 16) + 0.6 * pulse(t - 4.5 - 0.14, BEAT, 20);
+    const sIn = spring(t - 4.55, 12, .6);
+    const sc = (2.2 * sIn) * (1 + 0.1 * beat);
+    heartG.setAttribute("opacity", a);
+    heartG.setAttribute("transform", `translate(540 700) scale(${sc.toFixed(4)})`);
+    heartGlow.setAttribute("transform", `scale(${(1.06 + 0.16 * beat).toFixed(3)})`); heartGlow.setAttribute("opacity", (0.12 + 0.18 * beat).toFixed(3));
+    const run = ((t - 4.5) * 360) % 1080;
+    ecg2.setAttribute("points", ecgPts.concat(ecgPts.map(([x, y]) => [x + 1080, y])).map(([x, y]) => `${x},${1010 + y * .55}`).join(" "));
+    ecg2.setAttribute("transform", `translate(${-run} 0)`);
+    ecg2.setAttribute("opacity", a * .6);
+    countBlock(t, 4.6, 9, 0, 100000, "قلبك ينبض حوالي", "نبضة كل يوم", WHITE, CREAM);
+  } else { heartG.setAttribute("opacity", 0); ecg2.setAttribute("opacity", 0); }
+
+  // wipe into cream (8.7–9.05)
+  if (t >= 8.7 && t < 9.1) { const w = ease(seg(t, 8.7, 9.0)); wipe.setAttribute("y", 1920 - 1920 * w); wipe.setAttribute("height", 1920 * w); }
+  else wipe.setAttribute("height", 0);
+
+  // ---- S4 breath (9–13)
+  if (t >= 9 && t < 13) {
+    const a = clamp((t - 9) / .2);
+    const br = 0.5 - 0.5 * Math.cos(((t - 9) / 2) * Math.PI * 2); // inhale/exhale every 2 s
+    const collapse = ease(seg(t, 12.6, 13));
+    breathG.setAttribute("opacity", a);
+    rings.forEach((r, i) => { r.setAttribute("r", ((110 + i * 55 + br * (60 + i * 30)) * (1 - collapse) + 52 * collapse).toFixed(1)); r.setAttribute("opacity", ((1 - i * .3) * (1 - collapse * (i ? 1 : .3))).toFixed(3)); });
+    breathCore.setAttribute("r", ((80 + br * 50) * (1 - collapse) + 52 * collapse).toFixed(1));
+    countBlock(t, 9.1, 13, 0, 20000, "تتنفّس حوالي", "نَفَس كل يوم", INK, INK);
+  } else breathG.setAttribute("opacity", 0);
+
+  // ---- S5 eye (13–17)
+  if (t >= 13 && t < 17.05) {
+    const a = 1;
+    const open = spring(t - 13.05, 12, .7);
+    const blinkAt = [13.75, 14.75, 15.75, 16.25];
+    let lid = 0; for (const b of blinkAt) { const d = t - b; if (d > 0 && d < .28) lid = Math.max(lid, Math.sin(d / .28 * Math.PI)); }
+    const fin = ease(seg(t, 16.6, 16.95)); lid = Math.max(lid, fin);
+    const W = 360 * open, H = 210 * open;
+    const cx = 540, cy = 720;
+    eyeG.setAttribute("opacity", a);
+    eyeWhite.setAttribute("d", `M${cx - W},${cy} Q${cx},${cy - H * 1.25} ${cx + W},${cy} Q${cx},${cy + H * 1.25} ${cx - W},${cy} Z`);
+    const look = Math.sin((t - 13) * 1.7) * 40;
+    for (const e of [iris, irisRing, pupil]) e.setAttribute("cx", cx + look);
+    glint.setAttribute("cx", cx + look + 45);
+    iris.setAttribute("r", 120 * open); irisRing.setAttribute("r", 120 * open); pupil.setAttribute("r", 52 * open + 8 * Math.sin(t * 3)); glint.setAttribute("r", 20 * open);
+    const topY = cy - H * 1.25 + (H * 1.25) * 2 * lid, botY = cy + H * 1.25 - 0.0;
+    lidTop.setAttribute("d", `M${cx - W - 40},${cy - 400} L${cx + W + 40},${cy - 400} L${cx + W + 40},${cy} Q${cx},${topY} ${cx - W - 40},${cy} Z`);
+    lidBot.setAttribute("d", `M${cx - W - 40},${cy + 400} L${cx + W + 40},${cy + 400} L${cx + W + 40},${cy} Q${cx},${botY + 200} ${cx - W - 40},${cy} Z`);
+    eyeLine.setAttribute("d", `M${cx - W},${cy} Q${cx},${topY} ${cx + W},${cy}`);
+    blackout.setAttribute("opacity", ease(seg(t, 16.75, 17.0)));
+    if (t < 16.8) countBlock(t, 13.1, 16.9, 0, 15000, "ترمش عيناك حوالي", "رمشة كل يوم", WHITE, WHITE);
+  } else { eyeG.setAttribute("opacity", 0); blackout.setAttribute("opacity", t >= 17 && t < 17.25 ? 1 - seg(t, 17, 17.25) : 0); }
+
+  // ---- S6 blood cells (17–21.5)
+  fx.clearRect(0, 0, 1080, 1920);
+  if (t >= 17 && t < 21.6) {
+    drawCells(t, clamp((t - 17) / .2));
+    const a = clamp((t - 17.1) / .25) * (1 - seg(t, 21.0, 21.4));
+    const k = easeOut(seg(t, 17.3, 19.4));
+    show(T.label, "يصنع جسمك حوالي", { top: "1060px", fontSize: "64px", fontWeight: 700, color: CREAM }, a);
+    show(T.num, fmt(lerp(0, 2000000, k)), { top: "1130px", fontSize: "156px", fontWeight: 700, color: WHITE, direction: "ltr", filter: t < 19.4 ? `blur(${((1 - k) * 5).toFixed(1)}px)` : "none" }, a);
+    show(T.unit, "كريّة دم حمراء", { top: "1360px", fontSize: "64px", fontWeight: 700, color: CREAM }, a * clamp((t - 18.4) / .3));
+    const x = slamIn(t, 19.5);
+    show(T.extra, "كل ثانية!", { top: "520px", fontSize: "150px", fontWeight: 700, color: WHITE, transform: `scale(${x.s}) rotate(-4deg)`, textShadow: `0 0 0 ${RED}, 8px 8px 0 ${RED}, -2px -2px 0 #000, 2px 2px 0 #000` }, x.a * (1 - seg(t, 21.0, 21.4)));
+  }
+
+  // ---- S7 tank (21.5–25.5)
+  if (t >= 21.4 && t < 25.6) {
+    const a = clamp((t - 21.45) / .25);
+    tankG.setAttribute("opacity", a);
+    const lvl = easeOut(seg(t, 21.7, 24.2));
+    const top = 1000 - 600 * 0.92 * lvl;
+    const wav = (ph, amp) => { let d = `M330,${top}`; for (let x = 330; x <= 750; x += 10) d += ` L${x},${(top + Math.sin(x / 38 + t * 5 + ph) * amp).toFixed(1)}`; return d + " L750,1010 L330,1010 Z"; };
+    liquid.setAttribute("d", wav(0, 12 + 8 * (1 - lvl)));
+    liquid2.setAttribute("d", wav(2, 8));
+    const l = slamIn(t, 21.6);
+    show(T.label, "يضخّ قلبك حوالي", { top: "1060px", fontSize: "64px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a * (1 - seg(t, 25.1, 25.4)));
+    show(T.num, fmt(lerp(0, 7500, lvl)), { top: "1130px", fontSize: "176px", fontWeight: 700, color: WHITE, direction: "ltr" }, a * (1 - seg(t, 25.1, 25.4)));
+    const u = slamIn(t, 24.25);
+    show(T.unit, "لتر من الدم يوميًا", { top: "1380px", fontSize: "66px", fontWeight: 700, color: CREAM, transform: `scale(${u.s})` }, u.a * (1 - seg(t, 25.1, 25.4)));
+    const f = ease(seg(t, 25.15, 25.5)), g2 = 1 - ease(seg(t, 25.5, 25.8));
+    flood2.setAttribute("y", 1920 - 1920 * f); flood2.setAttribute("height", 1920 * f * (t < 25.5 ? 1 : 0));
+  } else { tankG.setAttribute("opacity", 0); flood2.setAttribute("height", 0); }
+
+  // ---- S8 globe (25.5–29.5)
+  if (t >= 25.5 && t < 29.6) {
+    const a = clamp((t - 25.5) / .3) * (1 - seg(t, 29.2, 29.5));
+    const g = spring(t - 25.55, 11, .7);
+    globeG.setAttribute("opacity", a);
+    globeG.setAttribute("transform", `translate(540 720) scale(${g.toFixed(4)}) translate(-540 -720)`);
+    const turns = 2.5 * ease(seg(t, 25.9, 28.3));
+    let d = "", hx = 0, hy = 0;
+    for (let i = 0; i <= turns * 120; i++) { const th = (i / 120) * Math.PI * 2 - Math.PI / 2, rr = 285 + i * 0.12, tilt = 0.32; const x = 540 + rr * Math.cos(th), y = 720 + rr * Math.sin(th) * tilt + (i / 120) * 26 - 30; d += (i ? " L" : "M") + x.toFixed(1) + "," + y.toFixed(1); hx = x; hy = y; }
+    orbit.setAttribute("d", d || "M0,0"); orbitHead.setAttribute("cx", hx); orbitHead.setAttribute("cy", hy); orbitHead.setAttribute("opacity", turns > 0 ? 1 : 0);
+    const l = slamIn(t, 25.7);
+    show(T.label, "أوعيتك الدموية لو امتدّت", { top: "1060px", fontSize: "62px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
+    show(T.num, fmt(lerp(0, 100000, easeOut(seg(t, 25.9, 28.3)))) + " كم", { top: "1130px", fontSize: "150px", fontWeight: 700, color: WHITE }, a);
+    const u = slamIn(t, 28.35);
+    show(T.unit, "≈ تلفّ الأرض مرتين ونصف", { top: "1360px", fontSize: "60px", fontWeight: 700, color: RED, transform: `scale(${u.s})` }, Math.min(a, u.a));
+    show(T.note, "تقدير تقريبي", { top: "1450px", fontSize: "34px", color: CREAM }, Math.min(a, u.a) * .7);
+  } else globeG.setAttribute("opacity", 0);
+
+  // ---- S9 end (29.5–33)
+  if (t >= 29.5) {
+    const k = slamIn(t, 29.6);
+    show(T.kick, "وكل هذا…", { top: "560px", fontSize: "80px", fontWeight: 700, color: INK, transform: `translateY(${k.y}px)` }, k.a);
+    const b = slamIn(t, 30.1);
+    show(T.big, "دون أن تشعر!", { top: "690px", fontSize: "128px", fontWeight: 700, color: RED, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a);
+    maskRTL(T.big, t, 30.1, .45);
+    const r = ease(seg(t, 30.8, 31.3));
+    rule.setAttribute("x1", 540 - 300 * r); rule.setAttribute("x2", 540 + 300 * r); rule.setAttribute("opacity", 1);
+    const full = "تابع لمزيد من أسرار جسمك";
+    const n = Math.floor(full.length * seg(t, 31.0, 32.0));
+    show(T.sub, full.slice(0, Math.max(0, n)) + (t < 32.2 && Math.floor(t * 4) % 2 ? "|" : ""), { top: "1100px", fontSize: "62px", fontWeight: 700, color: INK }, t > 31 ? 1 : 0);
+    show(T.note, "المصادر في الوصف", { top: "1210px", fontSize: "34px", color: INK }, clamp((t - 32) / .3) * .7);
+  } else rule.setAttribute("opacity", 0);
+
+  // grain
+  gctx.clearRect(0, 0, 1080, 1920);
+  const tile = grainTiles[Math.floor(t * 24) % 4];
+  for (let y = 0; y < 1920; y += 256) for (let x = 0; x < 1080; x += 256) gctx.drawImage(tile, x, y);
+}
+window.seek = seek;
+
+// ---------- sound ----------
+window.buildAudio = async function (ctx) {
+  const sr = ctx.sampleRate, D = VIDEO.duration;
+  const master = ctx.createGain(); master.gain.value = 0.8;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  master.connect(comp); comp.connect(ctx.destination);
+  const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(11), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
+  const env = (g, t0, a, peak, dec, sus = 0.0001) => { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(sus, t0 + a + dec); };
+  const osc = (type, f, t0, dur, peak, a = .005, fEnd, dest = master) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, a, peak, dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + a + dur + .05); };
+  const noise = (t0, dur, peak, type, f0, f1, q = 1, a = .005, dest = master) => { const s = ctx.createBufferSource(), bq = ctx.createBiquadFilter(), g = ctx.createGain(); s.buffer = nb; bq.type = type; bq.Q.value = q; bq.frequency.setValueAtTime(f0, t0); if (f1) bq.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, a, peak, dur); s.connect(bq); bq.connect(g); g.connect(dest); s.start(t0, (t0 * 7.3) % 1); s.stop(t0 + a + dur + .05); };
+  const kick = (t0, v = .9) => osc("sine", 150, t0, .32, v, .002, 42);
+  const clap = (t0, v = .25) => { noise(t0, .14, v, "bandpass", 1500, null, 1.2); noise(t0 + .012, .1, v * .6, "bandpass", 2200, null, 1.5); };
+  const hat = (t0, v = .05) => noise(t0, .04, v, "highpass", 8000);
+  const whoosh = (t0, d = .5, v = .25) => noise(t0 - d * .7, d, v, "bandpass", 300, 5000, 2, d * .6);
+  const impact = (t0, v = .9) => { osc("sine", 90, t0, .9, v, .003, 30); noise(t0, .5, .35, "lowpass", 3000, 200, .7); };
+  const riser = (t0, t1, v = .2) => noise(t0, t1 - t0, v, "bandpass", 200, 6000, 3, (t1 - t0) * .9);
+  const blip = (t0, f = 1320, v = .12) => osc("triangle", f, t0, .09, v);
+  const bell = (t0, f, v = .2) => { osc("sine", f, t0, 2.2, v, .004); osc("sine", f * 2.01, t0, 1.2, v * .3, .004); };
+
+  // heartbeat opener
+  for (const t0 of [.5, 1.0]) { kick(t0, .8); kick(t0 + .14, .5); }
+  riser(1.0, 2.0, .22); impact(2.0);
+  // groove 2.0 → 29.5 (heart scene uses lub-dub)
+  for (let t0 = 2.0; t0 < 29.5; t0 += BEAT) {
+    if (t0 >= 4.5 && t0 < 9) { kick(t0, .85); kick(t0 + .14, .5); }
+    else kick(t0, .7);
+    if (t0 >= 4.5 && Math.round((t0 - 2) / BEAT) % 2 === 1) clap(t0);
+    if (t0 >= 9) { hat(t0 + .25); if (t0 >= 17) { hat(t0 + .125, .03); hat(t0 + .375, .03); } }
+  }
+  // bass + pad per bar (Am F C G)
+  const roots = [55, 43.65, 65.41, 49];
+  const chords = [[220, 261.6, 329.6], [174.6, 220, 261.6], [261.6, 329.6, 392], [196, 246.9, 293.7]];
+  const padBus = ctx.createBiquadFilter(); padBus.type = "lowpass"; padBus.frequency.value = 1400; const padG = ctx.createGain(); padG.gain.value = .5; padBus.connect(padG); padG.connect(master);
+  for (let bar = 0, t0 = 2.0; t0 < 31.5; bar++, t0 += 2) {
+    const r = roots[bar % 4];
+    for (let b = 0; b < 4; b++) osc("sawtooth", r * 2, t0 + b * BEAT, .38, .07, .01, null);
+    osc("sine", r, t0, 1.9, .3, .02);
+    for (const f of chords[bar % 4]) osc("sawtooth", f, t0, 1.95, .025, .2, null, padBus);
+  }
+  // transitions & accents
+  for (const t0 of [4.5, 9.0, 13.0, 21.5, 25.5]) whoosh(t0);
+  impact(17.0, .7); impact(19.5, .6); impact(25.5, .6);
+  // count landings
+  for (const [t0, f] of [[7.2, 1320], [11.7, 1175], [15.7, 1320], [19.4, 1568], [24.2, 1320], [28.3, 1568]]) { blip(t0, f); blip(t0 + .08, f * 1.5, .08); }
+  // breath swells (inhale/exhale every 2 s)
+  for (let t0 = 9; t0 < 13; t0 += 2) { noise(t0, .9, .06, "bandpass", 500, 1400, .8, .8); noise(t0 + 1, .9, .05, "bandpass", 1400, 500, .8, .8); }
+  // blinks
+  for (const t0 of [13.75, 14.75, 15.75, 16.25]) blip(t0 + .12, 2400, .06);
+  // liquid
+  noise(21.7, 2.4, .08, "lowpass", 300, 900, 1, 1.2);
+  // end
+  riser(28.6, 29.5, .18); impact(29.5, .5); bell(30.1, 880, .14); bell(31.0, 659.3, .1); bell(32.0, 440, .08);
+};
+
+// ---------- preview controls ----------
+const isRender = location.search.includes("render");
+if (!isRender) {
+  const fit = () => { const s = Math.min(innerWidth / 1080, innerHeight / 1920); $("stage").style.transform = `scale(${s})`; };
+  addEventListener("resize", fit); fit();
+  let buf, ac, src, startAt = 0, offset = 0, playing = false;
+  async function play() { ac ??= new AudioContext(); if (!buf) { const off = new OfflineAudioContext(2, Math.ceil(48000 * VIDEO.duration), 48000); await buildAudio(off); buf = await off.startRendering(); } src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start(0, offset % VIDEO.duration); startAt = ac.currentTime; playing = true; }
+  function pause() { if (!playing) return; offset += ac.currentTime - startAt; src.stop(); playing = false; }
+  const now = () => playing ? (offset + ac.currentTime - startAt) % VIDEO.duration : offset;
+  const ui = $("ui"); ui.innerHTML = `<button id=pp>play/pause</button> <input id=sc type=range min=0 max=${VIDEO.duration} step=0.01 style="width:300px">`;
+  $("pp").onclick = () => playing ? pause() : play();
+  $("sc").oninput = e => { const was = playing; pause(); offset = +e.target.value; if (was) play(); };
+  (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
+} else seek(0);
+</script>
+</body>
+</html>
