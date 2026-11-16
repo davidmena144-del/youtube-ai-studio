@@ -8,22 +8,51 @@ import { getChannel } from "../src/core/channel";
 import { closeDb, one, sql } from "../src/server/db/client";
 import { workerEnv } from "../src/server/env";
 import { putSecret } from "../src/server/security/secrets-store";
-import { pollDeviceFlow, startDeviceFlow, YouTube } from "../src/server/youtube/client";
+import { pollDeviceFlow, startDeviceFlow, YouTube, YouTubeApiError } from "../src/server/youtube/client";
+import { checkOAuthEnv, cleanSecret, explainTokenError } from "../src/server/youtube/oauth-diagnostics";
 import { TOKEN_SECRET, ytConfigFromEnv } from "../src/server/youtube/publish";
+
+/** Prints one line per verification step and mirrors it to the GitHub job summary. No secret values. */
+async function report(lines: string[]) {
+  for (const l of lines) console.log(l);
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    const { appendFileSync } = await import("node:fs");
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.map((l) => `- ${l}`).join("\n") + "\n");
+  }
+}
 
 async function main() {
   const env = workerEnv();
+  const findings = checkOAuthEnv(process.env);
+  await report(["### YouTube OAuth pre-checks (no secret values shown)", ...findings.map((f) => `${f.ok ? "OK  " : "WARN"} ${f.check}: ${f.detail}`)]);
   const cfg = ytConfigFromEnv();
-  if (process.env.YT_REFRESH_TOKEN) {
+  const refresh = cleanSecret(process.env.YT_REFRESH_TOKEN);
+  if (refresh) {
     // Playground token from the GitHub secret: verify it works for both APIs; nothing to store.
-    const yt = new YouTube(cfg, { access_token: "", refresh_token: process.env.YT_REFRESH_TOKEN, expires_at: 0 });
-    const channel = await yt.myChannel();
-    const today = new Date().toISOString().slice(0, 10);
-    const rows = await yt.videoReport(new Date(Date.now() - 28 * 86400_000).toISOString().slice(0, 10), today);
-    const local = await getChannel();
-    if (local) await one(sql`UPDATE channels SET youtube_channel_id = ${channel.id}, title = ${channel.title}, updated_at = now() WHERE id = ${local.id}::uuid RETURNING id`);
-    console.log(`Connected: "${channel.title}" (${channel.id}). Data API OK; Analytics API OK (${rows.length} video rows).`);
-    return;
+    const yt = new YouTube(cfg, { access_token: "", refresh_token: refresh, expires_at: 0 });
+    const steps: string[] = [];
+    try {
+      const channel = await yt.myChannel(); // first call refreshes the access token
+      steps.push("OK   access token refreshed", `OK   channel: "${channel.title}" (${channel.id})`, "OK   YouTube Data API v3");
+      const today = new Date().toISOString().slice(0, 10);
+      const rows = await yt.videoReport(new Date(Date.now() - 28 * 86400_000).toISOString().slice(0, 10), today);
+      steps.push(`OK   YouTube Analytics API (${rows.length} video rows, last 28 days)`);
+      const local = await getChannel();
+      if (local) await one(sql`UPDATE channels SET youtube_channel_id = ${channel.id}, title = ${channel.title}, updated_at = now() WHERE id = ${local.id}::uuid RETURNING id`);
+      await report(["### YouTube connection", ...steps]);
+      console.log(`Connected: "${channel.title}" (${channel.id}). Data API OK; Analytics API OK (${rows.length} video rows).`);
+      return;
+    } catch (e) {
+      const reason = e instanceof YouTubeApiError ? e.reason : "";
+      const stage = steps.length === 0 ? "token refresh / Data API" : "YouTube Analytics API";
+      await report([
+        "### YouTube connection",
+        ...steps,
+        `FAIL ${stage}: ${e instanceof Error ? e.message : String(e)}`,
+        ...(reason && steps.length === 0 ? [`Meaning: ${explainTokenError(reason)}`] : []),
+      ]);
+      throw e;
+    }
   }
   // Fallback: device flow (YouTube Data API only — Google does not allow Analytics on this flow).
   if (!env.ENCRYPTION_KEY) throw new Error("ENCRYPTION_KEY is required to store the device-flow token");

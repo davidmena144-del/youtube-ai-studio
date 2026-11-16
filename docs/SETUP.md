@@ -51,6 +51,8 @@
    https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/yt-analytics.readonly
    ```
 4. اختر **حساب القناة**. إن كان للحساب أكثر من قناة فاختر القناة الصحيحة.
+   - **علامة النجاح:** شاشة موافقة Google يجب أن تعرض **اسم تطبيقك** (الذي كتبته في Branding).
+   - إن ظهر "**Google OAuth 2.0 Playground**" فالرمز سيصدر لعميل Playground نفسه، وسيفشل الربط بخطأ `unauthorized_client`. ارجع للخطوة 2 وتأكد أن المربع مفعّل وأنك أغلقت نافذة الإعدادات بزر **Close**.
 5. عند التحذير اضغط **Advanced** ثم **Go to … (unsafe)**، ثم **Continue** ووافق على الصلاحيتين:
    - إدارة فيديوهاتك؛
    - قراءة التحليلات.
@@ -117,6 +119,7 @@ postgresql://postgres.tzmvrhixsymehvoffzvl:<PASSWORD>@<pooler-host>:5432/postgre
 
 | الخطأ | السبب والحل |
 |---|---|
+| `unauthorized_client` | Client ID/secret صحيحان، لكن رمز التجديد صادر لعميل آخر، غالبًا عميل Playground الافتراضي. كرر الخطوة 2 مع تفعيل **Use your own OAuth credentials** قبل **Authorize APIs**، وتأكد أن شاشة الموافقة تعرض اسم تطبيقك |
 | `invalid_grant` | الرمز أُلغي أو انتهى (التطبيق ما زال "Testing"؟). انشر التطبيق (الخطوة 1.5)، ثم كرر الخطوة 2 |
 | `redirect_uri_mismatch` | رابط Playground غير مضاف في Authorized redirect URIs |
 | `accessNotConfigured` / `SERVICE_DISABLED` | أحد الـ APIs غير مفعّل (الخطوة 1.3) |
