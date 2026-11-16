@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>الأرض في ثانية واحدة</title>
+<style>
+/*@FONTS@*/
+html,body{margin:0;background:#0B0B10;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:#0B0B10;transform-origin:0 0}
+.layer{position:absolute;inset:0}
+.abs{position:absolute;white-space:nowrap}
+.c{left:0;right:0;text-align:center}
+.kufi{font-family:"Kufi",sans-serif}
+.kufi{padding:40px 0}
+.mono{font-family:"Mono",monospace;direction:ltr}
+#hud{position:absolute;inset:0;pointer-events:none;color:#fff;opacity:.5;font-size:24px}
+#hud .br{position:absolute;width:56px;height:56px;border-color:#fff;border-style:solid;opacity:.8}
+#grain,#vig{position:absolute;inset:0;pointer-events:none}
+#vig{background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(0,0,0,.42) 100%)}
+canvas{position:absolute;left:0;top:0}
+#ui{position:fixed;left:8px;bottom:8px;z-index:9;font:14px sans-serif;color:#fff;direction:ltr}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg" class="layer"></div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+  <svg id="art" class="layer" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+  <div id="txt" class="layer"></div>
+  <div id="vig"></div>
+  <canvas id="grain" width="1080" height="1920"></canvas>
+  <div id="hud">
+    <div class="br" style="left:48px;top:150px;border-width:3px 0 0 3px"></div>
+    <div class="br" style="right:48px;top:150px;border-width:3px 3px 0 0"></div>
+    <div class="br" style="left:48px;bottom:330px;border-width:0 0 3px 3px"></div>
+    <div class="br" style="right:48px;bottom:330px;border-width:0 3px 3px 0"></div>
+    <div id="hudScene" class="abs mono" style="right:120px;top:166px"></div>
+    <div id="hudCat" class="abs mono" style="left:120px;bottom:346px"></div>
+    <div id="hudTc" class="abs mono" style="right:120px;bottom:346px"></div>
+  </div>
+</div>
+<div id="ui"></div>
+<script>
+/* Beat sheet — 120 BPM (beat = 0.5 s), 33 s, 9:16. Same grammar as «جسمك في 24 ساعة» / «دماغك في 24 ساعة»:
+   one idea, one big counter per scene, every scene morphs into the next. Facts web-checked — sources in the description.
+ 0.00  a small green planet ticks on a dark field; a stopwatch hand sweeps ONE second around it    | ticks
+ 1.75  the finished second-ring floods the screen teal                                             | impact 2.0
+ 2.00  title slam «الأرض» + «لا تتوقّف عن الحركة», kicker «في ثانيةٍ واحدة فقط…»                  | groove starts
+ 4.25  dark disc grows → scene 3
+ 4.50  SPIN: rotating globe, equator line glows, count 0→465 «مترًا كل ثانية»                      | whoosh loops
+ 8.75  the globe shrinks to a dot that drops onto an orbit
+ 9.00  ORBIT (navy): Earth races around the Sun with a trail, count 0→30 «كيلومترًا كل ثانية»     | swooshes
+12.75  white lightning flash cuts to the storm
+13.00  LIGHTNING (storm violet): bolts strike, count 0→44 «ومضة برق كل ثانية»                      | thunder cracks
+16.75  one bolt whites out the screen → sun orange
+17.00  SUN (orange): pulsing sun, count 0→4,000,000 «طن تتحوّل إلى طاقة», slam «كل ثانية!»       | rumble, impact 19.5
+21.25  sun melts down into a river
+21.50  AMAZON (deep green): flowing water, count 0→200,000 «متر مكعب من الماء»                     | water rush
+25.25  water floods up → coral
+25.50  BIRTHS (coral): new-born stars pop, 4 per second, count 0→4 «مواليد جدد»                   | chimes
+29.50  END (cream): «وكل هذا…» «في ثانية واحدة!» + follow + sources note                          | riser, ring-out
+*/
+const VIDEO = { w: 1080, h: 1920, duration: 33 };
+window.VIDEO = VIDEO;
+const BEAT = 0.5;
+const INK = "#0B0B10", TEAL = "#0FA3A3", GREEN = "#2BD576", NAVY = "#0B1A44", STORM = "#1C1236", ORANGE = "#FF7A1A", SUNY = "#FFD23F", RIVER = "#0B4D3A", WATER = "#1FB5C9", CORAL = "#FF5D73", CREAM = "#EDEBE4", WHITE = "#FFFFFF";
+
+function spring(t, w = 14, z = 0.82) { if (t <= 0) return 0; if (z >= 1) return 1 - Math.exp(-w * t) * (1 + w * t); const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); }
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOut = x => 1 - Math.pow(1 - clamp(x), 4);
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const rng = s => () => (s = (s + 0x6D2B79F5) | 0, s = Math.imul(s ^ (s >>> 15), 1 | s), s ^= s + Math.imul(s ^ (s >>> 7), 61 | s), ((s ^ (s >>> 14)) >>> 0) / 4294967296);
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const pulse = (t, period, w = 18) => { const k = ((t % period) + period) % period; return Math.exp(-w * k); };
+
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const bg = $("bg"), art = $("art"), txt = $("txt"), fx = $("fx").getContext("2d");
+function el(tag, cls, html, parent = txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; }
+function svg(tag, attrs, parent = art) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; }
+
+const T = {};
+T.kick = el("div", "abs c kufi"); T.big = el("div", "abs c kufi"); T.sub = el("div", "abs c kufi");
+T.label = el("div", "abs c kufi"); T.num = el("div", "abs c kufi"); T.unit = el("div", "abs c kufi");
+T.extra = el("div", "abs c kufi"); T.note = el("div", "abs c kufi"); T.label2 = el("div", "abs mono");
+for (const k in T) Object.assign(T[k].style, { opacity: 0 });
+
+// ---------- S1: tiny planet + one-second stopwatch ring ----------
+const dot = svg("circle", { cx: 540, cy: 960, r: 0, fill: GREEN });
+const secTicks = [...Array(12)].map((_, i) => { const a = i / 12 * Math.PI * 2 - Math.PI / 2; return svg("line", { x1: 540 + Math.cos(a) * 150, y1: 960 + Math.sin(a) * 150, x2: 540 + Math.cos(a) * 172, y2: 960 + Math.sin(a) * 172, stroke: WHITE, "stroke-width": 6, "stroke-linecap": "round", opacity: 0 }); });
+const secArc = svg("path", { d: "", fill: "none", stroke: TEAL, "stroke-width": 16, "stroke-linecap": "round" });
+const secHand = svg("line", { x1: 540, y1: 960, x2: 540, y2: 960, stroke: WHITE, "stroke-width": 7, "stroke-linecap": "round", opacity: 0 });
+const flood = svg("circle", { cx: 540, cy: 960, r: 0, fill: TEAL });
+const disc = svg("circle", { cx: 540, cy: 960, r: 0, fill: INK });
+
+// ---------- S3: rotating globe ----------
+const globeG = svg("g", { opacity: 0 });
+const globeClip = svg("clipPath", { id: "gc" }, svg("defs", {}));
+svg("circle", { cx: 540, cy: 680, r: 260 }, globeClip);
+svg("circle", { cx: 540, cy: 680, r: 260, fill: "#123C8C" }, globeG);
+const lands = svg("g", { "clip-path": "url(#gc)" }, globeG);
+const LAND = [[-.9, -.35, .5, .3], [-.2, .1, .7, .45], [.55, -.2, .45, .55], [1.3, .25, .55, .3], [1.9, -.4, .4, .25], [2.6, .05, .6, .4]];
+const landE = LAND.map(() => svg("ellipse", { cx: 0, cy: 0, rx: 0, ry: 0, fill: GREEN }, lands));
+const merid = [0, 1, 2, 3, 4, 5].map(() => svg("ellipse", { cx: 540, cy: 680, rx: 1, ry: 260, fill: "none", stroke: WHITE, "stroke-opacity": .18, "stroke-width": 3 }, lands));
+svg("circle", { cx: 540, cy: 680, r: 260, fill: "none", stroke: CREAM, "stroke-width": 6 }, globeG);
+const shade = svg("path", { d: "M540,420 A260,260 0 0 1 540,940 A150,260 0 0 0 540,420 Z", fill: "#000", opacity: .28 }, globeG);
+const equator = svg("ellipse", { cx: 540, cy: 690, rx: 262, ry: 26, fill: "none", stroke: SUNY, "stroke-width": 7 }, globeG);
+const eqDot = svg("circle", { r: 16, fill: SUNY }, globeG);
+
+// ---------- S4: orbit ----------
+const orbitG = svg("g", { opacity: 0 });
+const orbitPath = svg("ellipse", { cx: 540, cy: 680, rx: 380, ry: 200, fill: "none", stroke: WHITE, "stroke-opacity": .2, "stroke-width": 4, "stroke-dasharray": "10 14" }, orbitG);
+const sunGlow = svg("circle", { cx: 540, cy: 680, r: 120, fill: SUNY, opacity: .25 }, orbitG);
+const sunSmall = svg("circle", { cx: 540, cy: 680, r: 70, fill: SUNY }, orbitG);
+const trail = svg("path", { d: "", fill: "none", stroke: GREEN, "stroke-width": 12, "stroke-linecap": "round", opacity: .8 }, orbitG);
+const earthO = svg("circle", { r: 34, fill: "#2E7CF6", stroke: GREEN, "stroke-width": 8 }, orbitG);
+
+// ---------- S5: storm ----------
+const cloudG = svg("g", { opacity: 0 });
+const clouds = [[230, 360, 170], [520, 320, 210], [830, 370, 180], [380, 430, 150], [700, 440, 160]].map(([x, y, r]) => svg("ellipse", { cx: x, cy: y, rx: r, ry: r * .45, fill: "#3A2D5C" }, cloudG));
+const bolts = [0, 1, 2, 3].map(() => svg("polyline", { points: "", fill: "none", stroke: WHITE, "stroke-width": 10, "stroke-linejoin": "round", "stroke-linecap": "round", opacity: 0 }, cloudG));
+const white = svg("rect", { x: 0, y: 0, width: 1080, height: 1920, fill: WHITE, opacity: 0 });
+
+// ---------- S6: sun ----------
+const sunG = svg("g", { opacity: 0 });
+const sunRays = [...Array(16)].map(() => svg("line", { stroke: SUNY, "stroke-width": 18, "stroke-linecap": "round" }, sunG));
+const sunHalo = svg("circle", { cx: 540, cy: 680, r: 300, fill: SUNY, opacity: .25 }, sunG);
+const sunDisk = svg("circle", { cx: 540, cy: 680, r: 230, fill: SUNY }, sunG);
+const sunCore = svg("circle", { cx: 540, cy: 680, r: 150, fill: "#FFE98A" }, sunG);
+
+// ---------- S7: river ----------
+const riverG = svg("g", { opacity: 0 });
+const waves = [0, 1, 2].map(i => svg("path", { d: "", fill: [WATER, "#168FA3", "#0F6E82"][i], opacity: .95 - i * .1 }, riverG));
+const flood2 = svg("rect", { x: 0, y: 1920, width: 1080, height: 0, fill: CORAL });
+
+const rule = svg("line", { x1: 540, x2: 540, y1: 1060, y2: 1060, stroke: INK, "stroke-width": 4 });
+
+// ---------- grain ----------
+const grainTiles = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 14; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
+const gctx = $("grain").getContext("2d");
+
+// ---------- helpers ----------
+function show(node, text, style, a) { if (text != null && node._t !== text) { node.textContent = text; node._t = text; } Object.assign(node.style, style); node.style.opacity = a; }
+function slamIn(t, t0) { const k = spring(t - t0, 16, .62); return { s: lerp(1.35, 1, k), a: clamp((t - t0) / .12), y: (1 - k) * 40 }; }
+function maskRTL(node, t, t0, d) { const k = ease(seg(t, t0, t0 + d)); node.style.clipPath = `inset(0 0 0 ${(1 - k) * 100}%)`; }
+function countBlock(t, t0, t1, to, label, unit, color, labelColor, numSize = 176) {
+  const inA = clamp((t - t0) / .25), outA = 1 - clamp((t - (t1 - .35)) / .3), a = Math.min(inA, outA);
+  const k = easeOut(seg(t, t0 + .25, t0 + 2.6)), landed = t > t0 + 2.6;
+  const blur = landed ? 0 : (1 - k) * 6 * (k > 0 ? 1 : 0);
+  const pop = landed ? 1 + 0.08 * Math.exp(-10 * (t - t0 - 2.6)) * Math.cos(28 * (t - t0 - 2.6)) : 1;
+  const l = slamIn(t, t0 + .05);
+  show(T.label, label, { top: "1060px", fontSize: "60px", fontWeight: 700, color: labelColor, transform: `translateY(${l.y}px)` }, a);
+  show(T.num, fmt(lerp(0, to, k)), { top: "1130px", fontSize: numSize + "px", fontWeight: 700, color, letterSpacing: "2px", filter: blur > .3 ? `blur(${blur.toFixed(1)}px)` : "none", transform: `scale(${pop})`, direction: "ltr" }, a);
+  const u = slamIn(t, t0 + 2.6);
+  show(T.unit, unit, { top: "1380px", fontSize: "62px", fontWeight: 700, color: labelColor, transform: `translateY(${u.y}px) scale(${u.s})` }, Math.min(a, u.a));
+  return { a, k };
+}
+function hide(...n) { for (const x of n) x.style.opacity = 0; }
+const SCENES = [[0, "01", "ONE SECOND"], [2, "02", "TITLE"], [4.5, "03", "SPIN"], [9, "04", "ORBIT"], [13, "05", "LIGHTNING"], [17, "06", "SUN"], [21.5, "07", "AMAZON"], [25.5, "08", "BIRTHS"], [29.5, "09", "END"]];
+const arcPath = (cx, cy, r, a0, a1) => { const p = []; for (let i = 0; i <= 60; i++) { const a = lerp(a0, a1, i / 60); p.push(`${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`); } return "M" + p.join(" L"); };
+function boltPts(seed, x0, y0, y1) { const r = rng(seed), p = [[x0, y0]]; let x = x0; for (let y = y0; y < y1; y += 55 + r() * 40) { x += (r() - .5) * 120; p.push([x, y]); } return p; }
+
+// ---------- seek ----------
+function seek(t) {
+  t = clamp(t, 0, VIDEO.duration - 1e-6);
+  const sc = [...SCENES].reverse().find(s => t >= s[0]);
+  $("hudScene").textContent = `SCENE ${sc[1]} / 09`;
+  $("hudCat").textContent = `EARTH / 1 SEC — ${sc[2]}`;
+  const fr = Math.floor(t * 30) % 30, ss = Math.floor(t);
+  $("hudTc").innerHTML = `<span style="color:${GREEN}">●</span> 00:00:${String(ss).padStart(2, "0")}:${String(fr).padStart(2, "0")}`;
+  $("hud").style.color = t >= 29.5 ? INK : WHITE;
+  hide(...Object.values(T));
+  for (const k in T) { T[k].style.filter = "none"; T[k].style.clipPath = "none"; T[k].style.transform = "none"; T[k].style.textShadow = "none"; }
+
+  let base = INK;
+  if (t >= 2 && t < 4.5) base = TEAL;
+  if (t >= 9 && t < 13) base = NAVY;
+  if (t >= 13 && t < 17) base = STORM;
+  if (t >= 17 && t < 21.5) base = ORANGE;
+  if (t >= 21.5 && t < 25.5) base = RIVER;
+  if (t >= 25.5 && t < 29.5) base = CORAL;
+  if (t >= 29.5) base = CREAM;
+  bg.style.background = base;
+  fx.clearRect(0, 0, 1080, 1920);
+
+  // ---- S1 one second (0–2)
+  if (t < 2) {
+    const d = spring(t - .1, 18, .55);
+    dot.setAttribute("r", (40 * d * (1 + .12 * pulse(t, .5, 12))).toFixed(2));
+    const sweep = ease(seg(t, .55, 1.6));
+    secTicks.forEach((l, i) => l.setAttribute("opacity", clamp((t - .2 - i * .03) / .1) * .7));
+    secArc.setAttribute("d", sweep > 0 ? arcPath(540, 960, 200, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * .999 * sweep) : "M0,0");
+    secArc.setAttribute("opacity", sweep > 0 ? 1 : 0);
+    const ha = -Math.PI / 2 + Math.PI * 2 * sweep;
+    secHand.setAttribute("x2", 540 + Math.cos(ha) * 200); secHand.setAttribute("y2", 960 + Math.sin(ha) * 200); secHand.setAttribute("opacity", t > .5 ? 1 : 0);
+    const fl = ease(seg(t, 1.72, 2.0));
+    flood.setAttribute("r", (1200 * fl).toFixed(1));
+    show(T.label2, "EARTH / 1 SEC", { top: "1210px", left: "60px", fontSize: "28px", color: WHITE }, clamp((t - .9) / .2) * (1 - fl));
+    show(T.note, "ثانية واحدة", { top: "1220px", fontSize: "44px", color: CREAM }, clamp((t - 1.0) / .2) * (1 - fl));
+  } else { dot.setAttribute("r", 0); secTicks.forEach(l => l.setAttribute("opacity", 0)); secArc.setAttribute("opacity", 0); secHand.setAttribute("opacity", 0); flood.setAttribute("r", 0); }
+
+  // ---- S2 title (2–4.5)
+  if (t >= 2 && t < 4.75) {
+    const out = seg(t, 4.2, 4.5);
+    const k1 = slamIn(t, 2.05);
+    show(T.kick, "في ثانيةٍ واحدة فقط…", { top: "540px", fontSize: "58px", fontWeight: 700, color: CREAM, transform: `translateY(${k1.y}px)` }, k1.a * (1 - out));
+    const b = slamIn(t, 2.5);
+    show(T.big, "الأرض", { top: "640px", fontSize: "270px", fontWeight: 700, color: WHITE, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a * (1 - out));
+    maskRTL(T.big, t, 2.5, .45);
+    const s = slamIn(t, 3.0);
+    show(T.sub, "لا تتوقّف عن الحركة", { top: "1180px", fontSize: "80px", fontWeight: 700, color: INK, transform: `translateY(${s.y}px)` }, s.a * (1 - out));
+    maskRTL(T.sub, t, 3.0, .4);
+    disc.setAttribute("r", (1200 * ease(seg(t, 4.15, 4.5))).toFixed(1));
+  } else disc.setAttribute("r", 0);
+
+  // ---- S3 spin (4.5–9)
+  if (t >= 4.5 && t < 9.05) {
+    const a = clamp((t - 4.5) / .3);
+    const shrink = ease(seg(t, 8.6, 9.0));
+    const g = spring(t - 4.55, 11, .7) * (1 - shrink * .9);
+    globeG.setAttribute("opacity", a * (1 - seg(t, 8.9, 9.05)));
+    globeG.setAttribute("transform", `translate(540 680) scale(${g.toFixed(4)}) translate(-540 -680)`);
+    const rot = (t - 4.5) * 0.9;
+    LAND.forEach(([lon, lat, w, h], i) => { const L = ((lon + rot) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI, vis = Math.cos(L); const e = landE[i]; if (vis <= 0) { e.setAttribute("rx", 0); e.setAttribute("ry", 0); return; } e.setAttribute("cx", 540 + Math.sin(L) * 260 * Math.cos(lat)); e.setAttribute("cy", 680 + lat * 260); e.setAttribute("rx", (w * 160 * vis).toFixed(1)); e.setAttribute("ry", (h * 160).toFixed(1)); });
+    merid.forEach((m, i) => { const L = ((i / 6 * Math.PI * 2 + rot) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; m.setAttribute("rx", Math.abs(Math.sin(L) * 260).toFixed(1)); m.setAttribute("opacity", Math.cos(L) > 0 ? 1 : 0); });
+    const eL = ((rot * 1.0) % (Math.PI * 2)) - Math.PI;
+    eqDot.setAttribute("cx", 540 + Math.sin(eL) * 262); eqDot.setAttribute("cy", 690 + Math.cos(eL) * 26); eqDot.setAttribute("opacity", Math.cos(eL) > 0 ? 1 : .25);
+    if (t < 8.85) countBlock(t, 4.6, 8.9, 465, "خط الاستواء يدور بسرعة حوالي", "مترًا كل ثانية", WHITE, CREAM);
+    if (t < 8.85) T.label.style.fontSize = "58px";
+  } else globeG.setAttribute("opacity", 0);
+
+  // ---- S4 orbit (9–13)
+  if (t >= 9 && t < 13.05) {
+    const a = clamp((t - 9) / .25);
+    orbitG.setAttribute("opacity", a);
+    const k = spring(t - 9.05, 11, .7);
+    orbitG.setAttribute("transform", `translate(540 680) scale(${k.toFixed(3)}) translate(-540 -680)`);
+    sunGlow.setAttribute("r", 120 + 16 * pulse(t, BEAT, 6));
+    const th0 = Math.PI * .5, th = th0 + (t - 9) * 1.9, P = a2 => [540 + Math.cos(a2) * 380, 680 + Math.sin(a2) * 200];
+    const [ex, ey] = P(th); earthO.setAttribute("cx", ex); earthO.setAttribute("cy", ey);
+    let d = ""; for (let i = 0; i <= 30; i++) { const [x, y] = P(th - i * .045); d += (i ? " L" : "M") + x.toFixed(1) + "," + y.toFixed(1); }
+    trail.setAttribute("d", d);
+    countBlock(t, 9.1, 12.9, 30, "وتدور حول الشمس بسرعة حوالي", "كيلومترًا كل ثانية", WHITE, CREAM);
+    T.label.style.fontSize = "56px";
+    const u = slamIn(t, 11.8);
+    show(T.note, "≈ 107,000 كم في الساعة!", { top: "930px", fontSize: "46px", color: GREEN }, u.a * (1 - seg(t, 12.6, 12.9)));
+  } else orbitG.setAttribute("opacity", 0);
+
+  // ---- S5 lightning (13–17)
+  let wh = 0;
+  if (t >= 12.75 && t < 13.2) wh = Math.max(wh, t < 13 ? ease(seg(t, 12.75, 13)) : 1 - seg(t, 13, 13.2));
+  if (t >= 13 && t < 17.05) {
+    const a = clamp((t - 13) / .2);
+    cloudG.setAttribute("opacity", a);
+    clouds.forEach((c, i) => c.setAttribute("transform", `translate(${(Math.sin(t * .8 + i) * 20).toFixed(1)} 0)`));
+    const strikes = [13.35, 13.85, 14.25, 14.75, 15.1, 15.6, 15.95, 16.35];
+    bolts.forEach((b, i) => {
+      let best = -1; strikes.forEach((s, j) => { if (j % 4 === i && t >= s && t < s + .22) best = j; });
+      if (best < 0) { b.setAttribute("opacity", 0); return; }
+      const s = strikes[best], x0 = 180 + ((best * 271) % 720);
+      b.setAttribute("points", boltPts(best + 3, x0, 420, 1000).map(([x, y]) => `${x.toFixed(0)},${y.toFixed(0)}`).join(" "));
+      b.setAttribute("opacity", (1 - (t - s) / .22).toFixed(3));
+      wh = Math.max(wh, .18 * (1 - (t - s) / .22));
+    });
+    countBlock(t, 13.1, 16.9, 44, "تضرب الأرضَ حوالي", "ومضة برق كل ثانية", WHITE, "#D9CCFF");
+    if (t >= 16.6) { const k = ease(seg(t, 16.6, 16.95)); wh = Math.max(wh, k); }
+  } else cloudG.setAttribute("opacity", 0);
+  if (t >= 17 && t < 17.3) wh = Math.max(wh, 1 - seg(t, 17, 17.3));
+  white.setAttribute("opacity", wh.toFixed(3));
+
+  // ---- S6 sun (17–21.5)
+  if (t >= 17 && t < 21.6) {
+    const melt = ease(seg(t, 21.05, 21.5));
+    const a = clamp((t - 17) / .2) * (1 - seg(t, 21.35, 21.5));
+    const k = spring(t - 17.05, 10, .6);
+    sunG.setAttribute("opacity", a);
+    sunG.setAttribute("transform", `translate(540 680) scale(${(k * (1 + .03 * pulse(t, BEAT, 6))).toFixed(4)}, ${(k * (1 - melt * .8)).toFixed(4)}) translate(-540 -680)`);
+    sunRays.forEach((r, i) => { const an = i / 16 * Math.PI * 2 + t * .4, r1 = 260, r2 = 300 + 50 * (.5 + .5 * Math.sin(t * 6 + i)); r.setAttribute("x1", 540 + Math.cos(an) * r1); r.setAttribute("y1", 680 + Math.sin(an) * r1); r.setAttribute("x2", 540 + Math.cos(an) * r2); r.setAttribute("y2", 680 + Math.sin(an) * r2); });
+    sunHalo.setAttribute("r", 300 + 30 * pulse(t, BEAT, 5));
+    const ta = 1 - seg(t, 21.0, 21.35);
+    const kk = easeOut(seg(t, 17.3, 19.4));
+    show(T.label, "تحوّل الشمس من مادتها حوالي", { top: "1060px", fontSize: "60px", fontWeight: 700, color: WHITE }, clamp((t - 17.1) / .25) * ta);
+    show(T.num, fmt(lerp(0, 4000000, kk)), { top: "1130px", fontSize: "160px", fontWeight: 700, color: INK, direction: "ltr", filter: t < 19.4 ? `blur(${((1 - kk) * 5).toFixed(1)}px)` : "none" }, clamp((t - 17.1) / .25) * ta);
+    show(T.unit, "طن إلى طاقة", { top: "1370px", fontSize: "64px", fontWeight: 700, color: WHITE }, clamp((t - 18.4) / .3) * ta);
+    const x = slamIn(t, 19.5);
+    show(T.extra, "كل ثانية!", { top: "240px", fontSize: "140px", fontWeight: 700, color: WHITE, transform: `scale(${x.s}) rotate(-4deg)`, textShadow: `8px 8px 0 ${INK}` }, x.a * ta);
+  } else sunG.setAttribute("opacity", 0);
+
+  // ---- S7 Amazon (21.5–25.5)
+  if (t >= 21.4 && t < 25.6) {
+    const a = clamp((t - 21.45) / .25);
+    riverG.setAttribute("opacity", a);
+    const lvl = easeOut(seg(t, 21.6, 24.2));
+    const top = 980 - 520 * lvl;
+    waves.forEach((w, i) => { let d = `M-20,${top + i * 60}`; for (let x = -20; x <= 1100; x += 20) d += ` L${x},${(top + i * 60 + Math.sin(x / (70 + i * 20) - t * (5 + i)) * (18 - i * 4)).toFixed(1)}`; w.setAttribute("d", d + " L1100,1000 L-20,1000 Z"); });
+    const ta = 1 - seg(t, 25.1, 25.4);
+    const l = slamIn(t, 21.6);
+    show(T.label, "يصبّ نهر الأمازون في المحيط حوالي", { top: "1060px", fontSize: "50px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a * ta);
+    show(T.num, fmt(lerp(0, 200000, lvl)), { top: "1130px", fontSize: "170px", fontWeight: 700, color: WHITE, direction: "ltr" }, a * ta);
+    const u = slamIn(t, 24.25);
+    show(T.unit, "متر مكعب من الماء", { top: "1380px", fontSize: "62px", fontWeight: 700, color: WATER, transform: `scale(${u.s})` }, u.a * ta);
+    const f = ease(seg(t, 25.15, 25.5));
+    flood2.setAttribute("y", 1920 - 1920 * f); flood2.setAttribute("height", 1920 * f * (t < 25.5 ? 1 : 0));
+  } else { riverG.setAttribute("opacity", 0); flood2.setAttribute("height", 0); }
+
+  // ---- S8 births (25.5–29.5): a new star pops every 0.25 s (≈ 4 per second)
+  if (t >= 25.5 && t < 29.6) {
+    const a = clamp((t - 25.5) / .3) * (1 - seg(t, 29.2, 29.5));
+    const r = rng(55);
+    fx.save(); fx.globalAlpha = a;
+    for (let i = 0; i < 15; i++) {
+      const born = 25.75 + i * .25, x = 140 + r() * 800, y = 300 + r() * 620, life = t - born;
+      if (life < 0) continue;
+      const k = spring(life, 16, .45), s = 46 * k;
+      fx.fillStyle = "rgba(255,255,255,.18)"; fx.beginPath(); fx.arc(x, y, s * 2.2 * (1 - clamp(life / .6)) + s, 0, Math.PI * 2); fx.fill();
+      fx.fillStyle = WHITE; fx.beginPath();
+      for (let p = 0; p < 10; p++) { const an = p / 10 * Math.PI * 2 - Math.PI / 2, rr = p % 2 ? s * .45 : s; fx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); }
+      fx.closePath(); fx.fill();
+    }
+    fx.restore();
+    const k = easeOut(seg(t, 25.9, 27.6));
+    const l = slamIn(t, 25.7);
+    show(T.label, "ويولد حول العالم حوالي", { top: "1060px", fontSize: "62px", fontWeight: 700, color: WHITE, transform: `translateY(${l.y}px)` }, a);
+    show(T.num, fmt(lerp(0, 4, k)), { top: "1130px", fontSize: "190px", fontWeight: 700, color: WHITE, direction: "ltr" }, a);
+    const u = slamIn(t, 27.7);
+    show(T.unit, "أطفال كل ثانية", { top: "1380px", fontSize: "66px", fontWeight: 700, color: INK, transform: `scale(${u.s})` }, Math.min(a, u.a));
+  }
+
+  // ---- S9 end (29.5–33)
+  if (t >= 29.5) {
+    const k = slamIn(t, 29.6);
+    show(T.kick, "وكل هذا…", { top: "560px", fontSize: "80px", fontWeight: 700, color: INK, transform: `translateY(${k.y}px)` }, k.a);
+    const b = slamIn(t, 30.1);
+    show(T.big, "في ثانية واحدة!", { top: "690px", fontSize: "122px", fontWeight: 700, color: TEAL, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a);
+    maskRTL(T.big, t, 30.1, .45);
+    const rr = ease(seg(t, 30.8, 31.3));
+    rule.setAttribute("x1", 540 - 300 * rr); rule.setAttribute("x2", 540 + 300 * rr); rule.setAttribute("opacity", 1);
+    const full = "تابع لمزيد من أسرار الكون";
+    const n = Math.floor(full.length * seg(t, 31.0, 32.0));
+    show(T.sub, full.slice(0, Math.max(0, n)) + (t < 32.2 && Math.floor(t * 4) % 2 ? "|" : ""), { top: "1100px", fontSize: "62px", fontWeight: 700, color: INK }, t > 31 ? 1 : 0);
+    show(T.note, "المصادر في الوصف", { top: "1210px", fontSize: "34px", color: INK }, clamp((t - 32) / .3) * .7);
+  } else rule.setAttribute("opacity", 0);
+
+  gctx.clearRect(0, 0, 1080, 1920);
+  const tile = grainTiles[Math.floor(t * 24) % 4];
+  for (let y = 0; y < 1920; y += 256) for (let x = 0; x < 1080; x += 256) gctx.drawImage(tile, x, y);
+}
+window.seek = seek;
+
+// ---------- sound ----------
+window.buildAudio = async function (ctx) {
+  const sr = ctx.sampleRate;
+  const master = ctx.createGain(); master.gain.value = 0.8;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  master.connect(comp); comp.connect(ctx.destination);
+  const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(19), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
+  const env = (g, t0, a, peak, dec) => { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dec); };
+  const osc = (type, f, t0, dur, peak, a = .005, fEnd, dest = master) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, a, peak, dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + a + dur + .05); };
+  const noise = (t0, dur, peak, type, f0, f1, q = 1, a = .005, dest = master) => { const s = ctx.createBufferSource(), bq = ctx.createBiquadFilter(), g = ctx.createGain(); s.buffer = nb; bq.type = type; bq.Q.value = q; bq.frequency.setValueAtTime(f0, t0); if (f1) bq.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, a, peak, dur); s.connect(bq); bq.connect(g); g.connect(dest); s.start(t0, (t0 * 7.3) % 1); s.stop(t0 + a + dur + .05); };
+  const kick = (t0, v = .9) => osc("sine", 150, t0, .32, v, .002, 42);
+  const clap = (t0, v = .25) => { noise(t0, .14, v, "bandpass", 1500, null, 1.2); noise(t0 + .012, .1, v * .6, "bandpass", 2200, null, 1.5); };
+  const hat = (t0, v = .05) => noise(t0, .04, v, "highpass", 8000);
+  const whoosh = (t0, d = .5, v = .25) => noise(t0 - d * .7, d, v, "bandpass", 300, 5000, 2, d * .6);
+  const impact = (t0, v = .9) => { osc("sine", 90, t0, .9, v, .003, 30); noise(t0, .5, .35, "lowpass", 3000, 200, .7); };
+  const riser = (t0, t1, v = .2) => noise(t0, t1 - t0, v, "bandpass", 200, 6000, 3, (t1 - t0) * .9);
+  const blip = (t0, f = 1320, v = .12) => osc("triangle", f, t0, .09, v);
+  const bell = (t0, f, v = .2) => { osc("sine", f, t0, 2.2, v, .004); osc("sine", f * 2.01, t0, 1.2, v * .3, .004); };
+  const tick = (t0, v = .12) => { noise(t0, .02, v, "bandpass", 3500, null, 6); osc("square", 2200, t0, .012, v * .5); };
+  const crack = (t0, v = .5) => { noise(t0, .08, v, "highpass", 2500); noise(t0 + .02, 1.1, v * .6, "lowpass", 900, 120, .7, .02); osc("sine", 60, t0 + .03, 1.0, v * .5, .01, 35); };
+  const chime = (t0, f) => { osc("sine", f, t0, .5, .1, .003); osc("sine", f * 2, t0, .3, .04, .003); };
+
+  // opener: stopwatch ticks for one second
+  for (let t0 = .55; t0 < 1.65; t0 += 1 / 12) tick(t0, .07);
+  tick(.2, .14); riser(1.0, 2.0, .22); impact(2.0);
+  for (let t0 = 2.0; t0 < 29.5; t0 += BEAT) {
+    kick(t0, .72);
+    if (t0 >= 4.5 && Math.round((t0 - 2) / BEAT) % 2 === 1) clap(t0);
+    if (t0 >= 9) { hat(t0 + .25); if (t0 >= 17) { hat(t0 + .125, .03); hat(t0 + .375, .03); } }
+  }
+  // B minor: Bm – G – D – A, plucked arpeggio from the orbit scene
+  const roots = [61.74, 49.0, 73.42, 55.0], chords = [[246.9, 293.7, 370], [196, 246.9, 293.7], [293.7, 370, 440], [220, 277.2, 329.6]];
+  const padBus = ctx.createBiquadFilter(); padBus.type = "lowpass"; padBus.frequency.value = 1500; const padG = ctx.createGain(); padG.gain.value = .5; padBus.connect(padG); padG.connect(master);
+  for (let bar = 0, t0 = 2.0; t0 < 31.5; bar++, t0 += 2) {
+    const r = roots[bar % 4], ch = chords[bar % 4];
+    for (let b = 0; b < 4; b++) osc("sawtooth", r * 2, t0 + b * BEAT, .38, .07, .01);
+    osc("sine", r, t0, 1.9, .3, .02);
+    for (const f of ch) osc("sawtooth", f, t0, 1.95, .025, .2, null, padBus);
+    if (t0 >= 9 && t0 < 29.5) for (let s = 0; s < 8; s++) osc("triangle", ch[(s * 2) % 3] * 2, t0 + s * .25, .12, .04, .003);
+  }
+  for (const t0 of [4.5, 9.0, 21.5, 25.5]) whoosh(t0);
+  for (let t0 = 4.9; t0 < 8.6; t0 += 1) noise(t0, .9, .05, "bandpass", 400, 1200, 2, .4);
+  for (let t0 = 9.3; t0 < 12.8; t0 += 1.1) whoosh(t0, .4, .14);
+  [13.35, 13.85, 14.25, 14.75, 15.1, 15.6, 15.95, 16.35].forEach((t0, i) => crack(t0, i % 2 ? .35 : .5));
+  impact(13.0, .6); impact(17.0, .7); impact(19.5, .6);
+  noise(17.0, 4.2, .08, "lowpass", 140, 260, 1, 1.0); osc("sawtooth", 41.2, 17.0, 4.0, .05, .8);
+  noise(21.6, 3.6, .1, "bandpass", 500, 1600, .7, 1.0); noise(25.15, .5, .14, "bandpass", 300, 3000, 1, .3);
+  for (const [t0, f] of [[7.2, 1320], [11.7, 1175], [15.7, 1320], [19.4, 1568], [24.2, 1320], [27.6, 1568]]) { blip(t0, f); blip(t0 + .08, f * 1.5, .08); }
+  for (let i = 0; i < 15; i++) chime(25.75 + i * .25, [1318.5, 1568, 1760, 2093][i % 4]);
+  riser(28.6, 29.5, .18); impact(29.5, .5); bell(30.1, 987.8, .14); bell(31.0, 740, .1); bell(32.0, 493.9, .08);
+};
+
+// ---------- preview controls ----------
+const isRender = location.search.includes("render");
+if (!isRender) {
+  const fit = () => { const s = Math.min(innerWidth / 1080, innerHeight / 1920); $("stage").style.transform = `scale(${s})`; };
+  addEventListener("resize", fit); fit();
+  let buf, ac, src, startAt = 0, offset = 0, playing = false;
+  async function play() { ac ??= new AudioContext(); if (!buf) { const off = new OfflineAudioContext(2, Math.ceil(48000 * VIDEO.duration), 48000); await buildAudio(off); buf = await off.startRendering(); } src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start(0, offset % VIDEO.duration); startAt = ac.currentTime; playing = true; }
+  function pause() { if (!playing) return; offset += ac.currentTime - startAt; src.stop(); playing = false; }
+  const now = () => playing ? (offset + ac.currentTime - startAt) % VIDEO.duration : offset;
+  const ui = $("ui"); ui.innerHTML = `<button id=pp>play/pause</button> <input id=sc type=range min=0 max=${VIDEO.duration} step=0.01 style="width:300px">`;
+  $("pp").onclick = () => playing ? pause() : play();
+  $("sc").oninput = e => { const was = playing; pause(); offset = +e.target.value; if (was) play(); };
+  (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
+} else seek(0);
+</script>
+</body>
+</html>

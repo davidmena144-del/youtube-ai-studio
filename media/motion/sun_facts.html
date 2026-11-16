@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>الشمس بالأرقام</title>
+<style>
+/*@FONTS@*/
+html,body{margin:0;background:#07070F;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:#07070F;transform-origin:0 0}
+.layer{position:absolute;inset:0}
+.abs{position:absolute;white-space:nowrap}
+.c{left:0;right:0;text-align:center}
+.kufi{font-family:"Kufi",sans-serif}
+.kufi{padding:40px 0}
+.mono{font-family:"Mono",monospace;direction:ltr}
+#hud{position:absolute;inset:0;pointer-events:none;color:#fff;opacity:.5;font-size:24px}
+#hud .br{position:absolute;width:56px;height:56px;border-color:#fff;border-style:solid;opacity:.8}
+#grain,#vig{position:absolute;inset:0;pointer-events:none}
+#vig{background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(0,0,0,.42) 100%)}
+canvas{position:absolute;left:0;top:0}
+#ui{position:fixed;left:8px;bottom:8px;z-index:9;font:14px sans-serif;color:#fff;direction:ltr}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg" class="layer"></div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+  <svg id="art" class="layer" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+  <div id="txt" class="layer"></div>
+  <div id="vig"></div>
+  <canvas id="grain" width="1080" height="1920"></canvas>
+  <div id="hud">
+    <div class="br" style="left:48px;top:150px;border-width:3px 0 0 3px"></div>
+    <div class="br" style="right:48px;top:150px;border-width:3px 3px 0 0"></div>
+    <div class="br" style="left:48px;bottom:330px;border-width:0 0 3px 3px"></div>
+    <div class="br" style="right:48px;bottom:330px;border-width:0 3px 3px 0"></div>
+    <div id="hudScene" class="abs mono" style="right:120px;top:166px"></div>
+    <div id="hudCat" class="abs mono" style="left:120px;bottom:346px"></div>
+    <div id="hudTc" class="abs mono" style="right:120px;bottom:346px"></div>
+  </div>
+</div>
+<div id="ui"></div>
+<script>
+/* Beat sheet — 120 BPM (beat = 0.5 s), 33 s, 9:16. Same grammar as «جسمك في 24 ساعة» / «دماغك في 24 ساعة»:
+   one idea, one big counter per scene, every scene morphs into the next. Facts web-checked — sources in the description.
+ 0.00  spark: a white-hot dot in deep space pulses twice (stars around)              | flare thumps x2
+ 1.00  corona rays burst out of the dot (SUN / DATA)                                 | riser 1.0→2.0
+ 1.75  the glow floods the screen orange                                              | impact 2.0
+ 2.00  title slam «الشمس» + «بالأرقام», kicker «نجمٌ واحد…»                          | kick+clap start
+ 4.25  dark disc grows from the centre → space                                        | whoosh 4.5
+ 4.50  EARTHS: a huge sun disc fills with blue earth dots, 0→1,000,000 «كوكب بحجم الأرض» | pops
+ 8.75  white-hot bar wipes up                                                         | whoosh 9.0
+ 9.00  CORE: thermometer shoots up, 0→15,000,000 «درجة مئوية»                        | sizzle
+12.75  the thermometer bulb shrinks to a photon                                       | whoosh 13.0
+13.00  LIGHT: the photon races from the sun to Earth, timer 00:00→08:20               | zips, ticks, impact 16.9
+17.00  ENERGY (amber): the sun sheds particles into rays, 0→4,000,000 «طن» + «كل ثانية!» | crackle, impact 19.5
+21.50  AGE: a cosmic clock-gauge sweeps, 0→4,600,000,000 «سنة»                        | low swell
+25.50  MASS: pie fills to 99.8 % «من كتلة المجموعة الشمسية», the tiny rest = planets  | bells
+29.50  END: «وكل هذا…» «من نجمٍ متوسط!» + follow + sources note                      | riser, ring-out
+*/
+const VIDEO = { w: 1080, h: 1920, duration: 33 };
+window.VIDEO = VIDEO;
+const BEAT = 0.5;
+const SPACE = "#07070F", ORANGE = "#FF7A1A", AMBER = "#FFB000", HOT = "#FFF4D6", DEEP = "#C2300F", EARTH = "#2F7BFF", NAVY = "#0E1638", INK = "#0B0B10", CREAM = "#EDEBE4", WHITE = "#FFFFFF";
+
+function spring(t, w = 14, z = 0.82) { if (t <= 0) return 0; if (z >= 1) return 1 - Math.exp(-w * t) * (1 + w * t); const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); }
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOut = x => 1 - Math.pow(1 - clamp(x), 4);
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const rng = s => () => (s = (s + 0x6D2B79F5) | 0, s = Math.imul(s ^ (s >>> 15), 1 | s), s ^= s + Math.imul(s ^ (s >>> 7), 61 | s), ((s ^ (s >>> 14)) >>> 0) / 4294967296);
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const pulse = (t, period, w = 18) => { const k = ((t % period) + period) % period; return Math.exp(-w * k); };
+
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const bg = $("bg"), art = $("art"), txt = $("txt"), fx = $("fx").getContext("2d");
+function el(tag, cls, html, parent = txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; }
+function svg(tag, attrs, parent = art) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; }
+
+const T = {};
+T.kick = el("div", "abs c kufi"); T.big = el("div", "abs c kufi"); T.sub = el("div", "abs c kufi");
+T.label = el("div", "abs c kufi"); T.num = el("div", "abs c kufi"); T.unit = el("div", "abs c kufi");
+T.extra = el("div", "abs c kufi"); T.note = el("div", "abs c kufi"); T.label2 = el("div", "abs mono");
+for (const k in T) Object.assign(T[k].style, { opacity: 0 });
+
+const defs = svg("defs", {});
+defs.innerHTML = `<radialGradient id="sunG"><stop offset="0" stop-color="#FFF8E0"/><stop offset=".45" stop-color="#FFB000"/><stop offset=".85" stop-color="#FF7A1A"/><stop offset="1" stop-color="#E5480E"/></radialGradient>
+ <radialGradient id="haloG"><stop offset="0" stop-color="#FFB000" stop-opacity=".55"/><stop offset="1" stop-color="#FF7A1A" stop-opacity="0"/></radialGradient>
+ <linearGradient id="beamG" x1="0" x2="1"><stop offset="0" stop-color="#FFF4D6" stop-opacity="0"/><stop offset="1" stop-color="#FFF4D6" stop-opacity="1"/></linearGradient>`;
+
+// background star field (static, twinkling) used on space scenes
+const starsBg = (() => { const r = rng(21), a = []; for (let i = 0; i < 120; i++) a.push({ x: r() * 1080, y: r() * 1920, s: .8 + r() * 2.6, ph: r() * 6 }); return a; })();
+function drawStars(t, a) { if (a <= 0) return; fx.save(); for (const s of starsBg) { fx.globalAlpha = a * (.35 + .65 * Math.abs(Math.sin(t * 1.6 + s.ph))); fx.fillStyle = WHITE; fx.beginPath(); fx.arc(s.x, s.y, s.s, 0, Math.PI * 2); fx.fill(); } fx.restore(); }
+
+// ---------- S1 spark + corona ----------
+const coronaG = svg("g", { opacity: 0 });
+const corona = Array.from({ length: 16 }, () => svg("line", { stroke: AMBER, "stroke-linecap": "round", "stroke-width": 10 }, coronaG));
+const spark = svg("circle", { cx: 540, cy: 960, r: 0, fill: HOT });
+const sparkGlow = svg("circle", { cx: 540, cy: 960, r: 0, fill: "url(#haloG)" });
+const flood = svg("circle", { cx: 540, cy: 960, r: 0, fill: ORANGE });
+const disc = svg("circle", { cx: 540, cy: 960, r: 0, fill: SPACE });
+
+// ---------- S3 sun + earths ----------
+const SUNC = [540, 690], SUNR = 330;
+const sunG = svg("g", { opacity: 0 });
+const sunHalo = svg("circle", { cx: SUNC[0], cy: SUNC[1], r: SUNR * 1.35, fill: "url(#haloG)" }, sunG);
+const sunDisc = svg("circle", { cx: SUNC[0], cy: SUNC[1], r: SUNR, fill: "url(#sunG)" }, sunG);
+const EARTHS = (() => { const a = [], n = 420, golden = Math.PI * (3 - Math.sqrt(5)); for (let i = 0; i < n; i++) { const rr = Math.sqrt((i + .5) / n) * (SUNR - 16), th = i * golden; a.push([SUNC[0] + Math.cos(th) * rr, SUNC[1] + Math.sin(th) * rr]); } return a; })();
+const earthDots = EARTHS.map(([x, y]) => svg("circle", { cx: x, cy: y, r: 0, fill: EARTH, stroke: "#3CCB7F", "stroke-width": 0 }, sunG));
+const earthRef = svg("g", { opacity: 0 });
+svg("circle", { cx: 0, cy: 0, r: 22, fill: EARTH }, earthRef);
+svg("path", { d: "M-12,-8 q6,-6 12,0 q4,6 -4,10 q-8,2 -8,-10 Z M6,6 q6,-2 8,4 q-4,6 -10,2 Z", fill: "#3CCB7F" }, earthRef);
+
+// ---------- S4 thermometer ----------
+const thG = svg("g", { opacity: 0 });
+svg("rect", { x: 480, y: 330, width: 120, height: 560, rx: 60, fill: WHITE, stroke: INK, "stroke-width": 14 }, thG);
+const thBulbBg = svg("circle", { cx: 540, cy: 900, r: 92, fill: WHITE, stroke: INK, "stroke-width": 14 }, thG);
+const thFill = svg("rect", { x: 506, y: 880, width: 68, height: 0, rx: 34, fill: DEEP }, thG);
+const thBulb = svg("circle", { cx: 540, cy: 900, r: 70, fill: DEEP }, thG);
+const thTicks = [0, 1, 2, 3, 4, 5].map(i => svg("line", { x1: 612, x2: 652, y1: 400 + i * 80, y2: 400 + i * 80, stroke: INK, "stroke-width": 8, "stroke-linecap": "round" }, thG));
+const heatWaves = [0, 1, 2].map(i => svg("path", { d: "", fill: "none", stroke: ORANGE, "stroke-width": 10, "stroke-linecap": "round", opacity: 0 }, thG));
+const photonA = svg("circle", { cx: 540, cy: 900, r: 0, fill: HOT });
+
+// ---------- S5 light race ----------
+const raceG = svg("g", { opacity: 0 });
+const raceSun = svg("circle", { cx: -120, cy: 700, r: 300, fill: "url(#sunG)" }, raceG);
+const raceEarth = svg("circle", { cx: 930, cy: 700, r: 48, fill: EARTH }, raceG);
+svg("path", { d: "M906,684 q14,-14 30,-2 q8,14 -10,22 q-18,4 -20,-20 Z", fill: "#3CCB7F" }, raceG);
+const beam = svg("rect", { x: 180, y: 692, width: 0, height: 16, rx: 8, fill: "url(#beamG)" }, raceG);
+const photon = svg("circle", { cx: 180, cy: 700, r: 20, fill: HOT }, raceG);
+const photonGlow = svg("circle", { cx: 180, cy: 700, r: 60, fill: HOT, opacity: .25 }, raceG);
+const distLine = svg("line", { x1: 180, x2: 880, y1: 820, y2: 820, stroke: WHITE, "stroke-opacity": .4, "stroke-width": 4, "stroke-dasharray": "14 14" }, raceG);
+const distTxt = svg("text", { x: 530, y: 880, "text-anchor": "middle", "font-family": "Mono", "font-size": 34, fill: WHITE, opacity: .7, direction: "ltr", "unicode-bidi": "bidi-override" }, raceG); distTxt.textContent = "~150,000,000 km";
+const blackout = svg("rect", { x: 0, y: 0, width: 1080, height: 1920, fill: SPACE, opacity: 0 });
+
+// ---------- S6 mass → energy ----------
+const meG = svg("g", { opacity: 0 });
+const meSun = svg("circle", { cx: 540, cy: 690, r: 230, fill: "url(#sunG)" }, meG);
+const meRays = Array.from({ length: 12 }, () => svg("line", { stroke: HOT, "stroke-width": 14, "stroke-linecap": "round" }, meG));
+const meBits = (() => { const r = rng(33), a = []; for (let i = 0; i < 90; i++) a.push({ ang: r() * Math.PI * 2, sp: .6 + r() * .8, ph: r(), s: 8 + r() * 12 }); return a; })();
+
+// ---------- S7 age gauge ----------
+const ageG = svg("g", { opacity: 0 });
+svg("circle", { cx: 540, cy: 700, r: 290, fill: "none", stroke: WHITE, "stroke-opacity": .14, "stroke-width": 34 }, ageG);
+const ageArc = svg("path", { d: "", fill: "none", stroke: AMBER, "stroke-width": 34, "stroke-linecap": "round" }, ageG);
+const ageSun = svg("circle", { cx: 540, cy: 700, r: 120, fill: "url(#sunG)" }, ageG);
+const ageHand = svg("line", { x1: 540, y1: 700, x2: 540, y2: 450, stroke: WHITE, "stroke-width": 10, "stroke-linecap": "round" }, ageG);
+const ageTicks = Array.from({ length: 12 }, (_, i) => { const a = i / 12 * Math.PI * 2 - Math.PI / 2; return svg("line", { x1: 540 + Math.cos(a) * 330, y1: 700 + Math.sin(a) * 330, x2: 540 + Math.cos(a) * 352, y2: 700 + Math.sin(a) * 352, stroke: WHITE, "stroke-opacity": .5, "stroke-width": 6, "stroke-linecap": "round" }, ageG); });
+
+// ---------- S8 mass pie ----------
+const pieG = svg("g", { opacity: 0 });
+const pieBg = svg("circle", { cx: 540, cy: 690, r: 290, fill: WHITE, opacity: .9 }, pieG);
+const pieSlice = svg("path", { d: "", fill: ORANGE }, pieG);
+const pieCore = svg("circle", { cx: 540, cy: 690, r: 120, fill: NAVY }, pieG);
+const pieLead = svg("line", { x1: 0, y1: 0, x2: 0, y2: 0, stroke: WHITE, "stroke-width": 5, opacity: 0 }, pieG);
+const pieLbl = svg("text", { "font-family": "Kufi", "font-weight": 700, "font-size": 36, fill: WHITE, "text-anchor": "start", opacity: 0 }, pieG); pieLbl.textContent = "كل الكواكب وما عداها";
+
+const rule = svg("line", { x1: 540, x2: 540, y1: 1060, y2: 1060, stroke: INK, "stroke-width": 4 });
+
+// ---------- grain ----------
+const grainTiles = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 14; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
+const gctx = $("grain").getContext("2d");
+
+// ---------- helpers ----------
+function show(node, text, style, a) { if (text != null && node._t !== text) { node.textContent = text; node._t = text; } Object.assign(node.style, style); node.style.opacity = a; }
+function slamIn(t, t0) { const k = spring(t - t0, 16, .62); return { s: lerp(1.35, 1, k), a: clamp((t - t0) / .12), y: (1 - k) * 40 }; }
+function maskRTL(node, t, t0, d) { const k = ease(seg(t, t0, t0 + d)); node.style.clipPath = `inset(0 0 0 ${(1 - k) * 100}%)`; }
+function countBlock(t, t0, t1, to, label, unit, color, labelColor, numSize = 176, fmtFn = fmt) {
+  const inA = clamp((t - t0) / .25), outA = 1 - clamp((t - (t1 - .35)) / .3), a = Math.min(inA, outA);
+  const k = easeOut(seg(t, t0 + .25, t0 + 2.6)), landed = t > t0 + 2.6;
+  const blur = landed ? 0 : (1 - k) * 6 * (k > 0 ? 1 : 0);
+  const pop = landed ? 1 + 0.08 * Math.exp(-10 * (t - t0 - 2.6)) * Math.cos(28 * (t - t0 - 2.6)) : 1;
+  const l = slamIn(t, t0 + .05);
+  show(T.label, label, { top: "1060px", fontSize: "62px", fontWeight: 700, color: labelColor, transform: `translateY(${l.y}px)` }, a);
+  show(T.num, fmtFn(lerp(0, to, k)), { top: "1130px", fontSize: numSize + "px", fontWeight: 700, color, letterSpacing: "2px", filter: blur > .3 ? `blur(${blur.toFixed(1)}px)` : "none", transform: `scale(${pop})`, direction: "ltr" }, a);
+  const u = slamIn(t, t0 + 2.6);
+  show(T.unit, unit, { top: "1380px", fontSize: "62px", fontWeight: 700, color: labelColor, transform: `translateY(${u.y}px) scale(${u.s})` }, Math.min(a, u.a));
+  return { a, k };
+}
+function hide(...n) { for (const x of n) x.style.opacity = 0; }
+const SCENES = [[0, "01", "SPARK"], [2, "02", "TITLE"], [4.5, "03", "SIZE"], [9, "04", "CORE"], [13, "05", "LIGHT"], [17, "06", "ENERGY"], [21.5, "07", "AGE"], [25.5, "08", "MASS"], [29.5, "09", "END"]];
+const arcPath = (cx, cy, r, a0, a1) => { const p = []; for (let i = 0; i <= 72; i++) { const a = lerp(a0, a1, i / 72); p.push(`${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`); } return "M" + p.join(" L"); };
+const wedge = (cx, cy, r, a0, a1) => a1 - a0 < .001 ? "M0,0" : `M${cx},${cy} L` + arcPath(cx, cy, r, a0, a1).slice(1) + " Z";
+
+// ---------- seek ----------
+function seek(t) {
+  t = clamp(t, 0, VIDEO.duration - 1e-6);
+  const sc = [...SCENES].reverse().find(s => t >= s[0]);
+  $("hudScene").textContent = `SCENE ${sc[1]} / 09`;
+  $("hudCat").textContent = `SUN / DATA — ${sc[2]}`;
+  const fr = Math.floor(t * 30) % 30, ss = Math.floor(t);
+  $("hudTc").innerHTML = `<span style="color:${ORANGE}">●</span> 00:00:${String(ss).padStart(2, "0")}:${String(fr).padStart(2, "0")}`;
+  $("hud").style.color = (t >= 9 && t < 13) || (t >= 17 && t < 21.5) || t >= 29.5 ? INK : WHITE;
+  hide(...Object.values(T));
+  for (const k in T) { T[k].style.filter = "none"; T[k].style.clipPath = "none"; T[k].style.transform = "none"; T[k].style.textShadow = "none"; }
+
+  let base = SPACE;
+  if (t >= 2 && t < 4.5) base = ORANGE;
+  if (t >= 9 && t < 13) base = HOT;
+  if (t >= 17 && t < 21.5) base = AMBER;
+  if (t >= 25.5 && t < 29.5) base = NAVY;
+  if (t >= 29.5) base = CREAM;
+  bg.style.background = base;
+  fx.clearRect(0, 0, 1080, 1920);
+  const spaceScene = t < 2 || (t >= 4.5 && t < 9) || (t >= 13 && t < 17) || (t >= 21.5 && t < 25.5) ? 1 : (t >= 25.5 && t < 29.5 ? .6 : 0);
+  drawStars(t, spaceScene);
+
+  // ---- S1 spark → corona → orange flood (0–2)
+  if (t < 2) {
+    const d = spring(t - .15, 18, .55) * (1 + 0.45 * pulse(t - .5, .5, 14) * (t < 1.1 ? 1 : 0));
+    spark.setAttribute("r", (26 * d).toFixed(2)); sparkGlow.setAttribute("r", (110 * d * (1 + .5 * pulse(t - .5, .5, 10)) + 260 * ease(seg(t, 1.0, 1.7))).toFixed(1));
+    const burst = easeOut(seg(t, 1.0, 1.5));
+    coronaG.setAttribute("opacity", burst > 0 ? 1 : 0);
+    corona.forEach((l, i) => { const a = i / 16 * Math.PI * 2 + t * .4, r1 = 60, r2 = 60 + (i % 2 ? 260 : 380) * burst; l.setAttribute("x1", 540 + Math.cos(a) * r1); l.setAttribute("y1", 960 + Math.sin(a) * r1); l.setAttribute("x2", 540 + Math.cos(a) * r2); l.setAttribute("y2", 960 + Math.sin(a) * r2); l.setAttribute("stroke-width", i % 2 ? 8 : 14); });
+    const fl = ease(seg(t, 1.72, 2.0));
+    flood.setAttribute("r", (1200 * fl).toFixed(1));
+    show(T.label2, "SUN / DATA", { top: "1010px", left: "60px", fontSize: "28px", color: WHITE }, clamp((t - 1.2) / .2) * (1 - fl));
+  } else { spark.setAttribute("r", 0); sparkGlow.setAttribute("r", 0); coronaG.setAttribute("opacity", 0); flood.setAttribute("r", 0); }
+
+  // ---- S2 title (2–4.5)
+  if (t >= 2 && t < 4.75) {
+    const out = seg(t, 4.2, 4.5);
+    const k1 = slamIn(t, 2.05);
+    show(T.kick, "نجمٌ واحد…", { top: "620px", fontSize: "58px", fontWeight: 700, color: INK, transform: `translateY(${k1.y}px)` }, k1.a * (1 - out));
+    const b = slamIn(t, 2.5);
+    show(T.big, "الشمس", { top: "640px", fontSize: "260px", fontWeight: 700, color: WHITE, transform: `scale(${b.s})`, lineHeight: "1.5", textShadow: `0 10px 0 ${DEEP}` }, b.a * (1 - out));
+    maskRTL(T.big, t, 2.5, .45);
+    const s = slamIn(t, 3.0);
+    show(T.sub, "بالأرقام", { top: "1180px", fontSize: "96px", fontWeight: 700, color: INK, transform: `translateY(${s.y}px)` }, s.a * (1 - out));
+    maskRTL(T.sub, t, 3.0, .4);
+    disc.setAttribute("r", (1200 * ease(seg(t, 4.15, 4.5))).toFixed(1));
+  } else disc.setAttribute("r", 0);
+
+  // ---- S3 sun filling with earths (4.5–9)
+  if (t >= 4.5 && t < 9.05) {
+    const a = clamp((t - 4.5) / .3);
+    const g = spring(t - 4.55, 11, .7);
+    sunG.setAttribute("opacity", a);
+    sunG.setAttribute("transform", `translate(${SUNC[0]} ${SUNC[1]}) scale(${g.toFixed(4)}) translate(${-SUNC[0]} ${-SUNC[1]})`);
+    sunHalo.setAttribute("r", SUNR * (1.3 + .06 * pulse(t, BEAT, 6)));
+    // earths pour in (canvas), filling from the centre outwards
+    const fill = easeOut(seg(t, 4.85, 7.1)), n = Math.floor(EARTHS.length * fill);
+    earthDots.forEach((e, i) => { const pop = i < n ? clamp((fill * EARTHS.length - i) / 25) : 0; e.setAttribute("r", (9 * pop).toFixed(2)); e.setAttribute("stroke-width", pop > 0 ? 2 : 0); });
+    // a single "real size" earth for scale, beside the sun
+    earthRef.setAttribute("opacity", clamp((t - 5.0) / .3) * a);
+    earthRef.setAttribute("transform", `translate(${SUNC[0] + SUNR + 60} ${SUNC[1] - SUNR + 30}) scale(${spring(t - 5.0, 14, .55).toFixed(3)})`);
+    countBlock(t, 4.6, 9, 1000000, "يتّسع جوف الشمس لأكثر من", "كوكب بحجم الأرض", WHITE, CREAM);
+  } else { sunG.setAttribute("opacity", 0); earthRef.setAttribute("opacity", 0); }
+  // wipe into white-hot
+  if (t >= 8.7 && t < 9.1) { const w = ease(seg(t, 8.7, 9.0)); fx.fillStyle = HOT; fx.fillRect(0, 1920 - 1920 * w, 1080, 1920 * w); }
+
+  // ---- S4 core temperature (9–13)
+  if (t >= 9 && t < 13.05) {
+    const a = clamp((t - 9) / .2), shrink = ease(seg(t, 12.55, 12.95));
+    const lvl = easeOut(seg(t, 9.35, 11.7));
+    thG.setAttribute("opacity", a * (1 - shrink));
+    thG.setAttribute("transform", `translate(540 620) scale(${(.95 * spring(t - 9.05, 12, .65) * (1 - shrink * .7)).toFixed(3)}) translate(-540 -620)`);
+    const h = 520 * lvl; thFill.setAttribute("y", 880 - h); thFill.setAttribute("height", h + 20);
+    thBulb.setAttribute("r", 70 + 6 * pulse(t, BEAT, 8));
+    heatWaves.forEach((w, i) => { const x = 380 + i * 160, ph = t * 6 + i; let d = ""; for (let k = 0; k <= 10; k++) { const y = 360 - k * 18 - (t * 60 % 40); d += (k ? " L" : "M") + (x + Math.sin(ph + k * .9) * 14).toFixed(1) + "," + y.toFixed(1); } w.setAttribute("d", d); w.setAttribute("opacity", (lvl > .6 ? .8 : 0) * (1 - shrink)); });
+    photonA.setAttribute("r", (34 * shrink * (1 - seg(t, 12.95, 13.05))).toFixed(1)); photonA.setAttribute("cy", lerp(900, 700, shrink)); photonA.setAttribute("cx", lerp(540, 180, ease(seg(t, 12.8, 13.05))));
+    countBlock(t, 9.1, 13, 15000000, "تبلغ حرارة قلبها حوالي", "درجة مئوية", DEEP, INK, 150);
+  } else { thG.setAttribute("opacity", 0); photonA.setAttribute("r", 0); }
+
+  // ---- S5 light race (13–17)
+  if (t >= 13 && t < 17.05) {
+    const a = clamp((t - 13) / .2);
+    raceG.setAttribute("opacity", a);
+    raceSun.setAttribute("r", 300 + 10 * pulse(t, BEAT, 6));
+    const k = easeOut(seg(t, 13.35, 15.7)), px = lerp(180, 880, k);
+    beam.setAttribute("width", Math.max(0, px - 180)); photon.setAttribute("cx", px); photonGlow.setAttribute("cx", px);
+    photonGlow.setAttribute("r", 60 + 20 * pulse(t, .25, 10));
+    raceEarth.setAttribute("fill", k >= 1 ? "#5A9BFF" : EARTH);
+    raceEarth.setAttribute("r", 48 * (1 + (k >= 1 ? .2 * Math.exp(-(t - 15.7) * 6) : 0)));
+    const secs = 500 * k, mm = Math.floor(secs / 60), s2 = Math.floor(secs % 60);
+    countBlock(t, 13.1, 16.9, 500, "يصل ضوؤها إلى الأرض بعد حوالي", "8 دقائق و 20 ثانية", WHITE, WHITE, 176, v => `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(Math.floor(v % 60)).padStart(2, "0")}`);
+    T.label.style.fontSize = "56px";
+    void mm; void s2;
+    blackout.setAttribute("opacity", ease(seg(t, 16.75, 17.0)));
+  } else { raceG.setAttribute("opacity", 0); blackout.setAttribute("opacity", t >= 17 && t < 17.25 ? 1 - seg(t, 17, 17.25) : 0); }
+
+  // ---- S6 mass → energy (17–21.5)
+  if (t >= 17 && t < 21.6) {
+    const a = clamp((t - 17.05) / .25) * (1 - seg(t, 21.1, 21.45));
+    meG.setAttribute("opacity", a);
+    meG.setAttribute("transform", `translate(540 690) scale(${(.85 * spring(t - 17.05, 12, .65)).toFixed(3)}) translate(-540 -690)`);
+    meSun.setAttribute("r", 230 + 8 * pulse(t, BEAT, 7));
+    meRays.forEach((l, i) => { const an = i / 12 * Math.PI * 2 + t * .5, r1 = 260, r2 = 300 + 60 * (.5 + .5 * Math.sin(t * 8 + i)); l.setAttribute("x1", 540 + Math.cos(an) * r1); l.setAttribute("y1", 690 + Math.sin(an) * r1); l.setAttribute("x2", 540 + Math.cos(an) * r2); l.setAttribute("y2", 690 + Math.sin(an) * r2); });
+    fx.save(); fx.globalAlpha = a;
+    for (const b of meBits) { const u = ((t - 17) * b.sp + b.ph) % 1, r = 200 + u * 420, x = 540 + Math.cos(b.ang) * r, y = 690 + Math.sin(b.ang) * r * .85; if (y > 1000) continue; fx.globalAlpha = a * (1 - u); fx.fillStyle = u < .4 ? DEEP : HOT; fx.fillRect(x - b.s / 2, y - b.s / 2, b.s * (1 - u * .6), b.s * (1 - u * .6)); }
+    fx.restore();
+    const k = easeOut(seg(t, 17.3, 19.4));
+    show(T.label, "تحوّل الشمس حوالي", { top: "1060px", fontSize: "62px", fontWeight: 700, color: INK }, a);
+    show(T.num, fmt(lerp(0, 4000000, k)), { top: "1130px", fontSize: "164px", fontWeight: 700, color: INK, direction: "ltr", filter: t < 19.4 ? `blur(${((1 - k) * 5).toFixed(1)}px)` : "none" }, a);
+    show(T.unit, "طن من مادتها إلى طاقة", { top: "1370px", fontSize: "60px", fontWeight: 700, color: INK }, a * clamp((t - 18.4) / .3));
+    const x = slamIn(t, 19.5);
+    show(T.extra, "كل ثانية!", { top: "220px", fontSize: "140px", fontWeight: 700, color: WHITE, transform: `scale(${x.s}) rotate(-4deg)`, textShadow: `8px 8px 0 ${DEEP}, -2px -2px 0 ${INK}, 2px 2px 0 ${INK}` }, x.a * (1 - seg(t, 21.1, 21.45)));
+  } else meG.setAttribute("opacity", 0);
+
+  // ---- S7 age (21.5–25.5)
+  if (t >= 21.4 && t < 25.6) {
+    const a = clamp((t - 21.45) / .25) * (1 - seg(t, 25.15, 25.45));
+    const k = easeOut(seg(t, 21.8, 24.2));
+    ageG.setAttribute("opacity", a);
+    ageG.setAttribute("transform", `translate(540 700) scale(${(.95 * spring(t - 21.5, 12, .6)).toFixed(3)}) translate(-540 -700)`);
+    const turn = k * 0.5; // the gauge stops near half way
+    ageArc.setAttribute("d", turn > .002 ? arcPath(540, 700, 290, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * turn) : "M0,0");
+    const ha = -Math.PI / 2 + Math.PI * 2 * turn;
+    ageHand.setAttribute("x2", 540 + Math.cos(ha) * 250); ageHand.setAttribute("y2", 700 + Math.sin(ha) * 250);
+    ageSun.setAttribute("r", 120 + 6 * pulse(t, BEAT, 6));
+    const l = slamIn(t, 21.6);
+    show(T.label, "يبلغ عمر الشمس حوالي", { top: "1060px", fontSize: "62px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
+    show(T.num, fmt(lerp(0, 4600000000, k)), { top: "1130px", fontSize: "116px", fontWeight: 700, color: AMBER, direction: "ltr", filter: t < 24.2 ? `blur(${((1 - k) * 5).toFixed(1)}px)` : "none" }, a);
+    const u = slamIn(t, 24.25);
+    show(T.unit, "سنة", { top: "1330px", fontSize: "76px", fontWeight: 700, color: CREAM, transform: `scale(${u.s})` }, u.a * a);
+  } else ageG.setAttribute("opacity", 0);
+
+  // ---- S8 mass share (25.5–29.5)
+  if (t >= 25.5 && t < 29.6) {
+    const a = clamp((t - 25.5) / .3) * (1 - seg(t, 29.2, 29.5));
+    const g = spring(t - 25.55, 11, .7), k = easeOut(seg(t, 25.9, 28.3));
+    pieG.setAttribute("opacity", a);
+    pieG.setAttribute("transform", `translate(540 690) scale(${g.toFixed(4)}) translate(-540 -690)`);
+    const end = -Math.PI / 2 + Math.PI * 2 * .998 * k;
+    pieSlice.setAttribute("d", wedge(540, 690, 290, -Math.PI / 2, end));
+    const lead = seg(t, 28.35, 28.7), la = -Math.PI / 2 - .02;
+    pieLead.setAttribute("x1", 540 + Math.cos(la) * 292); pieLead.setAttribute("y1", 690 + Math.sin(la) * 292);
+    pieLead.setAttribute("x2", 540 + Math.cos(la) * 292 - 160 * lead); pieLead.setAttribute("y2", 690 + Math.sin(la) * 292 - 70 * lead);
+    pieLead.setAttribute("opacity", lead > 0 ? 1 : 0);
+    pieLbl.setAttribute("x", 330); pieLbl.setAttribute("y", 315); pieLbl.setAttribute("text-anchor", "middle"); pieLbl.setAttribute("opacity", lead);
+    const l = slamIn(t, 25.7);
+    show(T.label, "تحتوي الشمس وحدها على حوالي", { top: "1060px", fontSize: "60px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
+    show(T.num, (99.8 * k).toFixed(1) + "%", { top: "1130px", fontSize: "176px", fontWeight: 700, color: ORANGE, direction: "ltr" }, a);
+    const u = slamIn(t, 28.35);
+    show(T.unit, "من كتلة المجموعة الشمسية", { top: "1380px", fontSize: "58px", fontWeight: 700, color: CREAM, transform: `scale(${u.s})` }, Math.min(a, u.a));
+  } else pieG.setAttribute("opacity", 0);
+
+  // ---- S9 end (29.5–33)
+  if (t >= 29.5) {
+    const k = slamIn(t, 29.6);
+    show(T.kick, "وكل هذا…", { top: "560px", fontSize: "80px", fontWeight: 700, color: INK, transform: `translateY(${k.y}px)` }, k.a);
+    const b = slamIn(t, 30.1);
+    show(T.big, "من نجمٍ متوسط!", { top: "690px", fontSize: "120px", fontWeight: 700, color: ORANGE, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a);
+    maskRTL(T.big, t, 30.1, .45);
+    const r = ease(seg(t, 30.8, 31.3));
+    rule.setAttribute("x1", 540 - 300 * r); rule.setAttribute("x2", 540 + 300 * r); rule.setAttribute("opacity", 1);
+    const full = "تابع لمزيد من أسرار الكون";
+    const n = Math.floor(full.length * seg(t, 31.0, 32.0));
+    show(T.sub, full.slice(0, Math.max(0, n)) + (t < 32.2 && Math.floor(t * 4) % 2 ? "|" : ""), { top: "1100px", fontSize: "62px", fontWeight: 700, color: INK }, t > 31 ? 1 : 0);
+    show(T.note, "المصادر في الوصف", { top: "1210px", fontSize: "34px", color: INK }, clamp((t - 32) / .3) * .7);
+  } else rule.setAttribute("opacity", 0);
+
+  gctx.clearRect(0, 0, 1080, 1920);
+  const tile = grainTiles[Math.floor(t * 24) % 4];
+  for (let y = 0; y < 1920; y += 256) for (let x = 0; x < 1080; x += 256) gctx.drawImage(tile, x, y);
+}
+window.seek = seek;
+
+// ---------- sound ----------
+window.buildAudio = async function (ctx) {
+  const sr = ctx.sampleRate;
+  const master = ctx.createGain(); master.gain.value = 0.8;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  master.connect(comp); comp.connect(ctx.destination);
+  const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(19), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
+  const env = (g, t0, a, peak, dec) => { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dec); };
+  const osc = (type, f, t0, dur, peak, a = .005, fEnd, dest = master) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, a, peak, dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + a + dur + .05); };
+  const noise = (t0, dur, peak, type, f0, f1, q = 1, a = .005, dest = master) => { const s = ctx.createBufferSource(), bq = ctx.createBiquadFilter(), g = ctx.createGain(); s.buffer = nb; bq.type = type; bq.Q.value = q; bq.frequency.setValueAtTime(f0, t0); if (f1) bq.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, a, peak, dur); s.connect(bq); bq.connect(g); g.connect(dest); s.start(t0, (t0 * 7.3) % 1); s.stop(t0 + a + dur + .05); };
+  const kick = (t0, v = .9) => osc("sine", 150, t0, .32, v, .002, 42);
+  const clap = (t0, v = .25) => { noise(t0, .14, v, "bandpass", 1500, null, 1.2); noise(t0 + .012, .1, v * .6, "bandpass", 2200, null, 1.5); };
+  const hat = (t0, v = .05) => noise(t0, .04, v, "highpass", 8000);
+  const whoosh = (t0, d = .5, v = .25) => noise(t0 - d * .7, d, v, "bandpass", 300, 5000, 2, d * .6);
+  const impact = (t0, v = .9) => { osc("sine", 90, t0, .9, v, .003, 30); noise(t0, .5, .35, "lowpass", 3000, 200, .7); };
+  const riser = (t0, t1, v = .2) => noise(t0, t1 - t0, v, "bandpass", 200, 6000, 3, (t1 - t0) * .9);
+  const blip = (t0, f = 1320, v = .12) => osc("triangle", f, t0, .09, v);
+  const bell = (t0, f, v = .2) => { osc("sine", f, t0, 2.2, v, .004); osc("sine", f * 2.01, t0, 1.2, v * .3, .004); };
+  const flare = (t0, v = .3) => { noise(t0, .6, v, "lowpass", 400, 2400, .7, .05); osc("sine", 60, t0, .5, v * 1.5, .01, 40); };
+  const sizzle = (t0, d, v = .05) => noise(t0, d, v, "highpass", 5000, 9000, .7, d * .5);
+  const zip = (t0, v = .12) => noise(t0, .18, v, "bandpass", 900, 6000, 4, .01);
+  const tick = (t0, v = .07) => { noise(t0, .02, v, "highpass", 3200); osc("square", 1900, t0, .012, v * .3); };
+  const crackle = (t0, d) => { const r = rng(91); for (let x = t0; x < t0 + d; x += .03 + r() * .06) noise(x, .02, .05 + r() * .06, "bandpass", 2500 + r() * 3000, null, 4); };
+
+  // opener: two solar flare thumps, then the corona riser
+  for (const t0 of [.5, 1.0]) { flare(t0, .25); kick(t0, .6); }
+  riser(1.0, 2.0, .22); impact(2.0);
+  for (let t0 = 2.0; t0 < 29.5; t0 += BEAT) {
+    kick(t0, .72);
+    if (t0 >= 4.5 && Math.round((t0 - 2) / BEAT) % 2 === 1) clap(t0);
+    if (t0 >= 9) { hat(t0 + .25); if (t0 >= 17) { hat(t0 + .125, .03); hat(t0 + .375, .03); } }
+  }
+  // C#m – A – E – B, with a bright arpeggio from the core scene on
+  const roots = [69.30, 55.0, 82.41, 61.74], chords = [[277.2, 329.6, 415.3], [220, 277.2, 329.6], [329.6, 415.3, 493.9], [246.9, 311.1, 370]];
+  const padBus = ctx.createBiquadFilter(); padBus.type = "lowpass"; padBus.frequency.value = 1600; const padG = ctx.createGain(); padG.gain.value = .5; padBus.connect(padG); padG.connect(master);
+  for (let bar = 0, t0 = 2.0; t0 < 31.5; bar++, t0 += 2) {
+    const r = roots[bar % 4], ch = chords[bar % 4];
+    for (let b = 0; b < 4; b++) osc("sawtooth", r * 2, t0 + b * BEAT, .38, .07, .01);
+    osc("sine", r, t0, 1.9, .3, .02);
+    for (const f of ch) osc("sawtooth", f, t0, 1.95, .025, .2, null, padBus);
+    if (t0 >= 9 && t0 < 29.5) for (let s = 0; s < 8; s++) osc("triangle", ch[(s * 2) % 3] * 2, t0 + s * .25, .12, .04, .003);
+  }
+  for (const t0 of [4.5, 9.0, 13.0, 21.5, 25.5]) whoosh(t0);
+  impact(17.0, .7); impact(19.5, .6); impact(25.5, .6);
+  for (const [t0, f] of [[7.2, 1320], [11.7, 1175], [15.7, 1320], [19.4, 1568], [24.2, 1320], [28.3, 1568]]) { blip(t0, f); blip(t0 + .08, f * 1.5, .08); }
+  for (let i = 0; i < 16; i++) blip(4.9 + i * .14, 900 + (i % 5) * 120, .04);
+  sizzle(9.3, 3.2, .05);
+  zip(13.35, .14); for (let t0 = 13.4; t0 < 15.7; t0 += .25) tick(t0);
+  crackle(17.2, 4.0);
+  noise(21.6, 3.4, .06, "lowpass", 200, 700, 1, 1.5);
+  bell(26.0, 1108.7, .1); bell(27.0, 830.6, .08); bell(28.0, 659.3, .08);
+  riser(28.6, 29.5, .18); impact(29.5, .5); bell(30.1, 880, .14); bell(31.0, 659.3, .1); bell(32.0, 554.4, .08);
+};
+
+// ---------- preview controls ----------
+const isRender = location.search.includes("render");
+if (!isRender) {
+  const fit = () => { const s = Math.min(innerWidth / 1080, innerHeight / 1920); $("stage").style.transform = `scale(${s})`; };
+  addEventListener("resize", fit); fit();
+  let buf, ac, src, startAt = 0, offset = 0, playing = false;
+  async function play() { ac ??= new AudioContext(); if (!buf) { const off = new OfflineAudioContext(2, Math.ceil(48000 * VIDEO.duration), 48000); await buildAudio(off); buf = await off.startRendering(); } src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start(0, offset % VIDEO.duration); startAt = ac.currentTime; playing = true; }
+  function pause() { if (!playing) return; offset += ac.currentTime - startAt; src.stop(); playing = false; }
+  const now = () => playing ? (offset + ac.currentTime - startAt) % VIDEO.duration : offset;
+  const ui = $("ui"); ui.innerHTML = `<button id=pp>play/pause</button> <input id=sc type=range min=0 max=${VIDEO.duration} step=0.01 style="width:300px">`;
+  $("pp").onclick = () => playing ? pause() : play();
+  $("sc").oninput = e => { const was = playing; pause(); offset = +e.target.value; if (was) play(); };
+  (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
+} else seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>كيف يقرأ الذكاء الاصطناعي كلامك؟</title>
+<style>
+/*@FONTS@*/
+html,body{margin:0;background:#0B0B10;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:#0B0B10;transform-origin:0 0}
+.layer{position:absolute;inset:0}
+.abs{position:absolute;white-space:nowrap}
+.c{left:0;right:0;text-align:center}
+.kufi{font-family:"Kufi",sans-serif}
+.kufi{padding:40px 0}
+.mono{font-family:"Mono",monospace;direction:ltr}
+#hud{position:absolute;inset:0;pointer-events:none;color:#fff;opacity:.5;font-size:24px}
+#hud .br{position:absolute;width:56px;height:56px;border-color:#fff;border-style:solid;opacity:.8}
+#grain,#vig{position:absolute;inset:0;pointer-events:none}
+#vig{background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(0,0,0,.42) 100%)}
+canvas{position:absolute;left:0;top:0}
+.tile{position:absolute;font-family:"Kufi",sans-serif;font-weight:700;border-radius:22px;padding:0 26px;white-space:nowrap;line-height:1.6}
+#ui{position:fixed;left:8px;bottom:8px;z-index:9;font:14px sans-serif;color:#fff;direction:ltr}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg" class="layer"></div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+  <svg id="art" class="layer" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+  <div id="tiles" class="layer"></div>
+  <div id="txt" class="layer"></div>
+  <div id="vig"></div>
+  <canvas id="grain" width="1080" height="1920"></canvas>
+  <div id="hud">
+    <div class="br" style="left:48px;top:150px;border-width:3px 0 0 3px"></div>
+    <div class="br" style="right:48px;top:150px;border-width:3px 3px 0 0"></div>
+    <div class="br" style="left:48px;bottom:330px;border-width:0 0 3px 3px"></div>
+    <div class="br" style="right:48px;bottom:330px;border-width:0 3px 3px 0"></div>
+    <div id="hudScene" class="abs mono" style="right:120px;top:166px"></div>
+    <div id="hudCat" class="abs mono" style="left:120px;bottom:346px"></div>
+    <div id="hudTc" class="abs mono" style="right:120px;bottom:346px"></div>
+  </div>
+</div>
+<div id="ui"></div>
+<script>
+/* Beat sheet — 120 BPM (beat = 0.5 s), 33 s, 9:16. Same grammar as «جسمك/دماغك في 24 ساعة»: one idea, one big
+   number per scene, every scene morphs into the next. Facts web-checked — sources in the description.
+ 0.00  CURSOR: a magenta cursor blinks on a dark grid, «اشرح لي الفضاء» types in big     | ticks, riser
+ 1.75  the typed line flashes and floods the screen neon green                           | impact 2.0
+ 2.00  TITLE: «كيف يقرأ الذكاء الاصطناعي…» «كلامك؟» slam, sub                           | groove starts
+ 4.25  dark disc grows from the centre                                                   | whoosh 4.5
+ 4.50  TOKENS: the sentence splits into coloured pieces, «توكنز!», English ≈ 4 حروف/توكن | snaps
+ 8.75  cream bar wipes up                                                                 | whoosh 9.0
+ 9.00  VOCAB: pieces fly into a giant grid (a dictionary), count 0→32,000 (Llama 2)      | ticks
+12.75  grid collapses into one column → numbers                                          | whoosh 13.0
+13.00  NUMBERS (magenta): digit rain, every token → 4,096 numbers (Llama 2 7B)           | glitches, impact 16.9
+17.00  ATTENTION: tokens on a ring, every token linked to every other, «الانتباه»         | pulses, impact 19.5
+21.50  PREDICT: bar race of next-token candidates, winner «هو» 0→54 %                     | race, ding
+25.50  REPEAT: tokens drop one by one into the reply, 0→100 «≈ 75 كلمة»                   | type ticks
+29.50  END: «وكل توكن…» «في جزء من الثانية!» + follow + sources note                     | riser, ring-out
+*/
+const VIDEO = { w: 1080, h: 1920, duration: 33 };
+window.VIDEO = VIDEO;
+const BEAT = 0.5;
+const INK = "#0B0B10", GRN = "#39FF88", MAG = "#FF2E9A", CREAM = "#EDEBE4", DEEP = "#0D1B2A", CYAN = "#2EF2FF", YEL = "#FFD23F", WHITE = "#FFFFFF";
+
+function spring(t, w = 14, z = 0.82) { if (t <= 0) return 0; if (z >= 1) return 1 - Math.exp(-w * t) * (1 + w * t); const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); }
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOut = x => 1 - Math.pow(1 - clamp(x), 4);
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const rng = s => () => (s = (s + 0x6D2B79F5) | 0, s = Math.imul(s ^ (s >>> 15), 1 | s), s ^= s + Math.imul(s ^ (s >>> 7), 61 | s), ((s ^ (s >>> 14)) >>> 0) / 4294967296);
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const pulse = (t, period, w = 18) => { const k = ((t % period) + period) % period; return Math.exp(-w * k); };
+
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const bg = $("bg"), art = $("art"), txt = $("txt"), fx = $("fx").getContext("2d");
+function el(tag, cls, html, parent = txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; }
+function svg(tag, attrs, parent = art) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; }
+
+const T = {};
+T.kick = el("div", "abs c kufi"); T.big = el("div", "abs c kufi"); T.sub = el("div", "abs c kufi");
+T.label = el("div", "abs c kufi"); T.num = el("div", "abs c kufi"); T.unit = el("div", "abs c kufi");
+T.extra = el("div", "abs c kufi"); T.note = el("div", "abs c kufi"); T.label2 = el("div", "abs mono");
+T.typed = el("div", "abs c kufi");
+for (const k in T) Object.assign(T[k].style, { opacity: 0 });
+
+// ---------- the sentence and its (illustrative) token pieces ----------
+const SENT = "اشرح لي الفضاء";
+const PIECES = ["اش", "رح", " لي", " ال", "فض", "اء"];
+const PCOL = [GRN, MAG, CYAN, YEL, GRN, MAG];
+const tiles = PIECES.map((p, i) => { const e = el("div", "tile", p.trim(), $("tiles")); e.style.opacity = 0; return e; });
+// layout of the pieces when split (RTL: first piece on the right)
+const SPLIT = [[800, 620], [600, 620], [370, 620], [790, 800], [560, 800], [330, 800]];
+
+// ---------- S1 cursor + flood ----------
+const gridG = svg("g", { opacity: 0 });
+for (let x = 0; x <= 1080; x += 90) svg("line", { x1: x, y1: 0, x2: x, y2: 1920, stroke: "#fff", "stroke-opacity": .06, "stroke-width": 2 }, gridG);
+for (let y = 0; y <= 1920; y += 90) svg("line", { x1: 0, y1: y, x2: 1080, y2: y, stroke: "#fff", "stroke-opacity": .06, "stroke-width": 2 }, gridG);
+const cursor = svg("rect", { x: 520, y: 880, width: 40, height: 150, rx: 6, fill: MAG, opacity: 0 });
+const flood = svg("circle", { cx: 540, cy: 960, r: 0, fill: GRN });
+const disc = svg("circle", { cx: 540, cy: 960, r: 0, fill: INK });
+
+// ---------- S6 attention ring ----------
+const ringG = svg("g", { opacity: 0 });
+const RING = PIECES.map((_, i) => { const a = -Math.PI / 2 + i / PIECES.length * Math.PI * 2; return [540 + Math.cos(a) * 300, 680 + Math.sin(a) * 300]; });
+const links = []; for (let i = 0; i < RING.length; i++) for (let j = i + 1; j < RING.length; j++) links.push([i, j, svg("line", { x1: RING[i][0], y1: RING[i][1], x2: RING[i][0], y2: RING[i][1], stroke: GRN, "stroke-width": 6, "stroke-linecap": "round", opacity: 0 }, ringG)]);
+const ringDots = RING.map(([x, y], i) => svg("circle", { cx: x, cy: y, r: 70, fill: INK, stroke: PCOL[i], "stroke-width": 10 }, ringG));
+const ringTxt = RING.map(([x, y], i) => { const e = svg("text", { x, y: y + 20, "text-anchor": "middle", "font-family": "Kufi", "font-weight": 700, "font-size": 52, fill: WHITE }, ringG); e.textContent = PIECES[i].trim(); return e; });
+const blackout = svg("rect", { x: 0, y: 0, width: 1080, height: 1920, fill: INK, opacity: 0 });
+
+// ---------- S7 bar race ----------
+const CANDS = [["هو", 54, GRN], ["الخارجي", 23, CYAN], ["واسع", 11, MAG], ["مليء", 6, YEL]];
+const barG = svg("g", { opacity: 0 });
+const bars = CANDS.map(([w, p, c], i) => {
+  const y = 430 + i * 130;
+  const track = svg("rect", { x: 140, y, width: 800, height: 90, rx: 45, fill: "#1B2A3A" }, barG);
+  const fill = svg("rect", { x: 940, y, width: 0, height: 90, rx: 45, fill: c }, barG);
+  const lab = svg("text", { x: 900, y: y + 62, "text-anchor": "start", "font-family": "Kufi", "font-weight": 700, "font-size": 46, fill: INK, direction: "rtl" }, barG); lab.textContent = w;
+  const pct = svg("text", { x: 170, y: y + 62, "text-anchor": "start", "font-family": "Mono", "font-size": 40, fill: WHITE }, barG);
+  return { track, fill, lab, pct, p, c };
+});
+
+// ---------- grain ----------
+const grainTiles = (() => { const r = rng(3), tl = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 14; } g.putImageData(im, 0, 0); tl.push(c); } return tl; })();
+const gctx = $("grain").getContext("2d");
+const rule = svg("line", { x1: 540, x2: 540, y1: 1060, y2: 1060, stroke: INK, "stroke-width": 4 });
+
+// ---------- helpers ----------
+function show(node, text, style, a) { if (text != null && node._t !== text) { node.textContent = text; node._t = text; } Object.assign(node.style, style); node.style.opacity = a; }
+function slamIn(t, t0) { const k = spring(t - t0, 16, .62); return { s: lerp(1.35, 1, k), a: clamp((t - t0) / .12), y: (1 - k) * 40 }; }
+function maskRTL(node, t, t0, d) { const k = ease(seg(t, t0, t0 + d)); node.style.clipPath = `inset(0 0 0 ${(1 - k) * 100}%)`; }
+function countBlock(t, t0, t1, to, label, unit, color, labelColor, numSize = 176, suffix = "") {
+  const inA = clamp((t - t0) / .25), outA = 1 - clamp((t - (t1 - .35)) / .3), a = Math.min(inA, outA);
+  const k = easeOut(seg(t, t0 + .25, t0 + 2.6)), landed = t > t0 + 2.6;
+  const blur = landed ? 0 : (1 - k) * 6 * (k > 0 ? 1 : 0);
+  const pop = landed ? 1 + 0.08 * Math.exp(-10 * (t - t0 - 2.6)) * Math.cos(28 * (t - t0 - 2.6)) : 1;
+  const l = slamIn(t, t0 + .05);
+  show(T.label, label, { top: "1060px", fontSize: "60px", fontWeight: 700, color: labelColor, transform: `translateY(${l.y}px)` }, a);
+  show(T.num, fmt(lerp(0, to, k)) + suffix, { top: "1130px", fontSize: numSize + "px", fontWeight: 700, color, letterSpacing: "2px", filter: blur > .3 ? `blur(${blur.toFixed(1)}px)` : "none", transform: `scale(${pop})`, direction: "ltr" }, a);
+  const u = slamIn(t, t0 + 2.6);
+  show(T.unit, unit, { top: "1380px", fontSize: "62px", fontWeight: 700, color: labelColor, transform: `translateY(${u.y}px) scale(${u.s})` }, Math.min(a, u.a));
+  return { a, k };
+}
+function hide(...n) { for (const x of n) x.style.opacity = 0; }
+const SCENES = [[0, "01", "INPUT"], [2, "02", "TITLE"], [4.5, "03", "TOKENS"], [9, "04", "VOCAB"], [13, "05", "NUMBERS"], [17, "06", "ATTENTION"], [21.5, "07", "PREDICT"], [25.5, "08", "REPEAT"], [29.5, "09", "END"]];
+const typedAt = (s, t, t0, cps) => [...s].slice(0, Math.floor(clamp((t - t0) * cps, 0, [...s].length))).join("");
+function placeTile(i, x, y, size, a, rot = 0, sc = 1) { const e = tiles[i]; e.style.left = x + "px"; e.style.top = y + "px"; e.style.fontSize = size + "px"; e.style.background = PCOL[i]; e.style.color = INK; e.style.opacity = a; e.style.transform = `translate(-50%,-50%) rotate(${rot}deg) scale(${sc})`; }
+
+// ---------- seek ----------
+function seek(t) {
+  t = clamp(t, 0, VIDEO.duration - 1e-6);
+  const sc = [...SCENES].reverse().find(s => t >= s[0]);
+  $("hudScene").textContent = `SCENE ${sc[1]} / 09`;
+  $("hudCat").textContent = `AI / TOKENS — ${sc[2]}`;
+  const fr = Math.floor(t * 30) % 30, ss = Math.floor(t);
+  $("hudTc").innerHTML = `<span style="color:${MAG}">●</span> 00:00:${String(ss).padStart(2, "0")}:${String(fr).padStart(2, "0")}`;
+  $("hud").style.color = (t >= 2 && t < 4.5) || (t >= 9 && t < 13) || t >= 29.5 ? INK : WHITE;
+  hide(...Object.values(T)); tiles.forEach(e => e.style.opacity = 0);
+  for (const k in T) { T[k].style.filter = "none"; T[k].style.clipPath = "none"; T[k].style.transform = "none"; T[k].style.textShadow = "none"; }
+
+  let base = INK;
+  if (t >= 2 && t < 4.5) base = GRN;
+  if (t >= 9 && t < 13) base = CREAM;
+  if (t >= 13 && t < 17) base = MAG;
+  if (t >= 21.5 && t < 29.5) base = DEEP;
+  if (t >= 29.5) base = CREAM;
+  bg.style.background = base;
+  fx.clearRect(0, 0, 1080, 1920);
+
+  // ---- S1 cursor + typing + green flood (0–2)
+  gridG.setAttribute("opacity", t < 2 ? 1 : 0);
+  if (t < 2) {
+    const typing = t >= .9;
+    cursor.setAttribute("opacity", !typing ? (Math.floor(t * 4) % 2 ? .25 : 1) * clamp(t / .1) : 0);
+    const s = typedAt(SENT, t, .9, 20);
+    const flash = t > 1.55 ? .5 + .5 * Math.sin(t * 80) : 1;
+    show(T.typed, s + (t < 1.6 ? "|" : ""), { top: "840px", fontSize: "120px", fontWeight: 700, color: WHITE, opacity: 1 }, typing ? flash : 0);
+    T.typed.style.textShadow = `0 0 30px ${MAG}`;
+    const fl = ease(seg(t, 1.72, 2.0));
+    flood.setAttribute("r", (1200 * fl).toFixed(1));
+    show(T.label2, "AI / TOKENS", { top: "1100px", left: "60px", fontSize: "28px", color: WHITE }, clamp((t - 1.0) / .2) * (1 - fl));
+  } else { cursor.setAttribute("opacity", 0); flood.setAttribute("r", 0); }
+
+  // ---- S2 title (2–4.5)
+  if (t >= 2 && t < 4.75) {
+    const out = seg(t, 4.2, 4.5);
+    const k1 = slamIn(t, 2.05);
+    show(T.kick, "كيف يقرأ الذكاء الاصطناعي…", { top: "600px", fontSize: "62px", fontWeight: 700, color: INK, transform: `translateY(${k1.y}px)` }, k1.a * (1 - out));
+    const b = slamIn(t, 2.5);
+    show(T.big, "كلامك؟", { top: "640px", fontSize: "260px", fontWeight: 700, color: INK, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a * (1 - out));
+    maskRTL(T.big, t, 2.5, .45);
+    const s = slamIn(t, 3.0);
+    show(T.sub, "رحلة داخل الآلة", { top: "1180px", fontSize: "84px", fontWeight: 700, color: MAG, transform: `translateY(${s.y}px)` }, s.a * (1 - out));
+    maskRTL(T.sub, t, 3.0, .4);
+    disc.setAttribute("r", (1200 * ease(seg(t, 4.15, 4.5))).toFixed(1));
+  } else disc.setAttribute("r", 0);
+
+  // ---- S3 tokens (4.5–9): sentence splits into pieces
+  if (t >= 4.5 && t < 9.05) {
+    const a = clamp((t - 4.5) / .2) * (1 - seg(t, 8.6, 8.8));
+    const split = spring(t - 5.1, 10, .55);
+    if (t < 5.15) { const cr = t > 4.85 ? Math.sin(t * 90) * 6 : 0; show(T.typed, SENT, { top: "640px", fontSize: "120px", fontWeight: 700, color: WHITE, transform: `translateX(${cr}px)` }, a); T.typed.style.textShadow = `0 0 30px ${GRN}`; }
+    PIECES.forEach((p, i) => {
+      if (t < 5.1) return;
+      const [x1, y1] = SPLIT[i];
+      const jig = Math.sin(t * 6 + i) * 6;
+      placeTile(i, lerp(540, x1, split), lerp(710, y1, split) + jig, 92, a, lerp(0, (i % 2 ? 4 : -4), split), lerp(.3, 1, clamp(split)) + .12 * pulse(t - 5.1 - i * .08, 10, 9));
+    });
+    const x = slamIn(t, 5.25);
+    show(T.extra, "توكنز!", { top: "250px", fontSize: "130px", fontWeight: 700, color: GRN, transform: `scale(${x.s}) rotate(-4deg)`, textShadow: `8px 8px 0 ${MAG}` }, x.a * a);
+    countBlock(t, 4.6, 9, 4, "في الإنجليزية، التوكن الواحد ≈", "حروف تقريبًا", WHITE, CREAM);
+  }
+  // wipe into cream
+  if (t >= 8.7 && t < 9.1) { const w = ease(seg(t, 8.7, 9.0)); fx.fillStyle = CREAM; fx.fillRect(0, 1920 - 1920 * w, 1080, 1920 * w); }
+
+  // ---- S4 vocabulary grid (9–13)
+  if (t >= 9 && t < 13.05) {
+    const fill = easeOut(seg(t, 9.35, 11.7)), collapse = ease(seg(t, 12.45, 12.95));
+    const cols = 24, rows = 18, cw = 36, gx = 540 - cols * cw / 2, gy = 260;
+    const r = rng(9), n = Math.floor(cols * rows * fill);
+    for (let i = 0; i < cols * rows; i++) {
+      const c = i % cols, rr = Math.floor(i / cols), on = i < n;
+      const x = lerp(gx + c * cw, 540 - 14, collapse), y = lerp(gy + rr * cw, 260 + rr * 30, collapse);
+      const col = [GRN, MAG, CYAN, YEL, "#1B1B24"][Math.floor(r() * 5)];
+      fx.fillStyle = on ? col : "rgba(11,11,16,.08)"; fx.globalAlpha = 1 - collapse * .3;
+      fx.fillRect(x, y, cw - 8, cw - 8);
+    }
+    fx.globalAlpha = 1;
+    // the six pieces fly into the grid at the start
+    PIECES.forEach((p, i) => { const k = ease(seg(t, 9.05 + i * .06, 9.6 + i * .06)); if (k >= 1) return; const [x1, y1] = SPLIT[i]; placeTile(i, lerp(x1, gx + (3 + i * 3) * cw, k), lerp(y1, gy + (4 + i * 2) * cw, k), lerp(92, 30, k), 1 - k, 0, 1); });
+    countBlock(t, 9.1, 13, 32000, "يختار القطع من قاموس فيه حوالي", "توكن في نموذج Llama 2", INK, INK);
+    show(T.note, "والعربية غالبًا تحتاج توكنز أكثر من الإنجليزية", { top: "930px", fontSize: "38px", fontWeight: 700, color: MAG }, clamp((t - 11.8) / .3) * (1 - seg(t, 12.6, 12.9)));
+  }
+
+  // ---- S5 numbers (13–17): digit rain
+  if (t >= 13 && t < 17.05) {
+    const a = clamp((t - 13) / .2);
+    fx.font = "700 34px Mono"; fx.textAlign = "center";
+    const r = rng(55);
+    for (let c = 0; c < 18; c++) {
+      const x = 80 + c * 54, sp = 300 + r() * 500, off = r() * 2000;
+      for (let k = 0; k < 16; k++) {
+        const y = ((t - 13) * sp + off + k * 46) % 620 + 380;
+        const v = ((Math.floor((t * 12 + c * 7 + k * 13)) * 9301 + 49297) % 233280) / 233280;
+        fx.fillStyle = k === 15 ? WHITE : `rgba(11,11,16,${(.15 + k / 16 * .55).toFixed(2)})`;
+        fx.globalAlpha = a; fx.fillText((v * 2 - 1).toFixed(2), x, y);
+      }
+    }
+    fx.globalAlpha = 1;
+    const tk = slamIn(t, 13.1);
+    show(T.extra, "«فض» =", { top: "250px", fontSize: "110px", fontWeight: 700, color: WHITE, transform: `scale(${tk.s})`, textShadow: `6px 6px 0 ${INK}` }, tk.a * (1 - seg(t, 16.6, 16.9)));
+    countBlock(t, 13.1, 16.9, 4096, "يتحوّل كل توكن إلى قائمة من", "رقمًا في نموذج Llama 2 7B", WHITE, WHITE);
+    blackout.setAttribute("opacity", ease(seg(t, 16.75, 17.0)));
+  } else blackout.setAttribute("opacity", t >= 17 && t < 17.25 ? 1 - seg(t, 17, 17.25) : 0);
+
+  // ---- S6 attention (17–21.5)
+  if (t >= 17 && t < 21.6) {
+    const a = clamp((t - 17.05) / .25) * (1 - seg(t, 21.1, 21.45));
+    ringG.setAttribute("opacity", a);
+    const g = spring(t - 17.05, 11, .65);
+    ringG.setAttribute("transform", `translate(540 680) scale(${g.toFixed(3)}) rotate(${((t - 17) * 6).toFixed(2)}) translate(-540 -680)`);
+    links.forEach(([i, j, ln], n) => { const k = ease(seg(t, 17.4 + n * .07, 17.8 + n * .07)); if (k <= 0) { ln.setAttribute("opacity", 0); return; } const [x1, y1] = RING[i], [x2, y2] = RING[j]; ln.setAttribute("x2", lerp(x1, x2, k)); ln.setAttribute("y2", lerp(y1, y2, k)); const p = pulse(t - 17.4 - (i + j) * .1, BEAT, 6); ln.setAttribute("opacity", (.3 + .7 * p).toFixed(3)); ln.setAttribute("stroke-width", 4 + 8 * p); });
+    ringDots.forEach((d, i) => d.setAttribute("r", 70 * (1 + .12 * pulse(t - 17 - i * .08, BEAT, 10))));
+    const l = slamIn(t, 17.2);
+    show(T.label, "ثم ينظر كل توكن إلى كل توكن آخر", { top: "1060px", fontSize: "56px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
+    const b = slamIn(t, 18.2);
+    show(T.num, "الانتباه", { top: "1130px", fontSize: "170px", fontWeight: 700, color: GRN, transform: `scale(${b.s})` }, Math.min(a, b.a));
+    const u = slamIn(t, 19.5);
+    show(T.unit, "Attention", { top: "1380px", fontSize: "62px", fontWeight: 700, color: MAG, transform: `scale(${u.s})`, direction: "ltr" }, Math.min(a, u.a));
+  } else ringG.setAttribute("opacity", 0);
+
+  // ---- S7 predict (21.5–25.5)
+  if (t >= 21.4 && t < 25.6) {
+    const a = clamp((t - 21.45) / .25) * (1 - seg(t, 25.15, 25.45));
+    barG.setAttribute("opacity", a);
+    const k = easeOut(seg(t, 21.8, 24.2));
+    bars.forEach((b, i) => { const w = 800 * (b.p / 60) * k; b.fill.setAttribute("x", 940 - w); b.fill.setAttribute("width", Math.max(0, w)); b.pct.textContent = Math.round(b.p * k) + "%"; b.lab.setAttribute("fill", w > 200 ? INK : WHITE); b.lab.setAttribute("x", 920); const win = i === 0 && t > 24.2; b.track.setAttribute("stroke", win ? GRN : "none"); b.track.setAttribute("stroke-width", win ? 8 : 0); });
+    const ctx = slamIn(t, 21.6);
+    show(T.extra, "الفضاء …؟", { top: "230px", fontSize: "96px", fontWeight: 700, color: WHITE, transform: `translateY(${ctx.y}px)` }, ctx.a * a);
+    const l = slamIn(t, 21.6);
+    show(T.label, "ثم يتوقّع التوكن التالي بالاحتمالات", { top: "1060px", fontSize: "56px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
+    show(T.num, Math.round(54 * k) + "%", { top: "1130px", fontSize: "176px", fontWeight: 700, color: GRN, direction: "ltr" }, a);
+    const u = slamIn(t, 24.25);
+    show(T.unit, "والأعلى احتمالًا غالبًا يفوز", { top: "1380px", fontSize: "60px", fontWeight: 700, color: CREAM, transform: `scale(${u.s})` }, u.a * a);
+    show(T.note, "أرقام توضيحية", { top: "950px", fontSize: "34px", color: CREAM }, a * .6);
+  } else barG.setAttribute("opacity", 0);
+
+  // ---- S8 repeat (25.5–29.5): tokens drop one by one into the reply line
+  if (t >= 25.5 && t < 29.6) {
+    const a = clamp((t - 25.5) / .3) * (1 - seg(t, 29.2, 29.5));
+    const k = easeOut(seg(t, 25.9, 28.3));
+    const words = ["الفضاء", "هو", "المكان", "الواسع", "الذي", "تسبح", "فيه", "النجوم", "والكواكب", "…"];
+    const shown = Math.floor(lerp(0, words.length, clamp((t - 25.7) / 2.4)));
+    fx.font = "700 64px Kufi"; fx.textAlign = "center"; fx.direction = "rtl";
+    let line = 0, xr = 960, y = 420;
+    for (let i = 0; i < shown; i++) {
+      const w = words[i], ww = fx.measureText(w).width + 44;
+      if (xr - ww < 100) { line++; xr = 960; y = 420 + line * 120; }
+      const age = t - 25.7 - i * 2.4 / words.length, drop = 1 - easeOut(clamp(age / .25));
+      fx.globalAlpha = a; fx.fillStyle = [GRN, MAG, CYAN, YEL][i % 4];
+      const bx = xr - ww, by = y - 60 - drop * 120;
+      fx.beginPath(); fx.roundRect(bx, by, ww - 14, 92, 20); fx.fill();
+      fx.fillStyle = INK; fx.fillText(w, bx + (ww - 14) / 2, by + 64);
+      xr -= ww;
+    }
+    fx.globalAlpha = 1;
+    const l = slamIn(t, 25.7);
+    show(T.label, "ويكرّر ذلك توكنًا بعد توكن", { top: "1060px", fontSize: "60px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
+    show(T.num, fmt(lerp(0, 100, k)), { top: "1130px", fontSize: "176px", fontWeight: 700, color: WHITE, direction: "ltr" }, a);
+    const u = slamIn(t, 28.35);
+    show(T.unit, "توكن ≈ 75 كلمة إنجليزية", { top: "1380px", fontSize: "62px", fontWeight: 700, color: GRN, transform: `scale(${u.s})` }, Math.min(a, u.a));
+  }
+
+  // ---- S9 end (29.5–33)
+  if (t >= 29.5) {
+    const k = slamIn(t, 29.6);
+    show(T.kick, "وكل توكن…", { top: "560px", fontSize: "80px", fontWeight: 700, color: INK, transform: `translateY(${k.y}px)` }, k.a);
+    const b = slamIn(t, 30.1);
+    show(T.big, "في جزء من الثانية!", { top: "690px", fontSize: "112px", fontWeight: 700, color: MAG, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a);
+    maskRTL(T.big, t, 30.1, .45);
+    const r = ease(seg(t, 30.8, 31.3));
+    rule.setAttribute("x1", 540 - 300 * r); rule.setAttribute("x2", 540 + 300 * r); rule.setAttribute("opacity", 1);
+    const full = "تابع لمزيد من أسرار الذكاء الاصطناعي";
+    const n = Math.floor(full.length * seg(t, 31.0, 32.0));
+    show(T.sub, full.slice(0, Math.max(0, n)) + (t < 32.2 && Math.floor(t * 4) % 2 ? "|" : ""), { top: "1100px", fontSize: "54px", fontWeight: 700, color: INK }, t > 31 ? 1 : 0);
+    show(T.note, "المصادر في الوصف", { top: "1210px", fontSize: "34px", color: INK }, clamp((t - 32) / .3) * .7);
+  } else rule.setAttribute("opacity", 0);
+
+  gctx.clearRect(0, 0, 1080, 1920);
+  const tile = grainTiles[Math.floor(t * 24) % 4];
+  for (let y = 0; y < 1920; y += 256) for (let x = 0; x < 1080; x += 256) gctx.drawImage(tile, x, y);
+}
+window.seek = seek;
+
+// ---------- sound ----------
+window.buildAudio = async function (ctx) {
+  const sr = ctx.sampleRate;
+  const master = ctx.createGain(); master.gain.value = 0.8;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  master.connect(comp); comp.connect(ctx.destination);
+  const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(19), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
+  const env = (g, t0, a, peak, dec) => { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dec); };
+  const osc = (type, f, t0, dur, peak, a = .005, fEnd, dest = master) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, a, peak, dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + a + dur + .05); };
+  const noise = (t0, dur, peak, type, f0, f1, q = 1, a = .005, dest = master) => { const s = ctx.createBufferSource(), bq = ctx.createBiquadFilter(), g = ctx.createGain(); s.buffer = nb; bq.type = type; bq.Q.value = q; bq.frequency.setValueAtTime(f0, t0); if (f1) bq.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, a, peak, dur); s.connect(bq); bq.connect(g); g.connect(dest); s.start(t0, (t0 * 7.3) % 1); s.stop(t0 + a + dur + .05); };
+  const kick = (t0, v = .9) => osc("sine", 150, t0, .32, v, .002, 42);
+  const clap = (t0, v = .25) => { noise(t0, .14, v, "bandpass", 1500, null, 1.2); noise(t0 + .012, .1, v * .6, "bandpass", 2200, null, 1.5); };
+  const hat = (t0, v = .05) => noise(t0, .04, v, "highpass", 8000);
+  const whoosh = (t0, d = .5, v = .25) => noise(t0 - d * .7, d, v, "bandpass", 300, 5000, 2, d * .6);
+  const impact = (t0, v = .9) => { osc("sine", 90, t0, .9, v, .003, 30); noise(t0, .5, .35, "lowpass", 3000, 200, .7); };
+  const riser = (t0, t1, v = .2) => noise(t0, t1 - t0, v, "bandpass", 200, 6000, 3, (t1 - t0) * .9);
+  const blip = (t0, f = 1320, v = .12) => osc("triangle", f, t0, .09, v);
+  const bell = (t0, f, v = .2) => { osc("sine", f, t0, 2.2, v, .004); osc("sine", f * 2.01, t0, 1.2, v * .3, .004); };
+  const key = (t0, v = .08) => { noise(t0, .02, v, "highpass", 3200); osc("square", 1500 + (t0 * 977 % 600), t0, .015, v * .4); };
+  const snap = (t0, f = 900) => { osc("square", f, t0, .05, .1, .002, f * .5); noise(t0, .04, .12, "bandpass", 2600, null, 3); };
+  const glitch = t0 => { for (let i = 0; i < 4; i++) osc("square", 200 + i * 340, t0 + i * .025, .02, .06, .001); };
+
+  // opener: cursor blinks, typing, riser
+  for (const t0 of [0, .5]) blip(t0, 880, .06);
+  for (let i = 0; i < 14; i++) if (i !== 4 && i !== 7) key(.9 + i / 20);
+  riser(1.0, 2.0, .22); impact(2.0);
+  for (let t0 = 2.0; t0 < 29.5; t0 += BEAT) {
+    kick(t0, .72);
+    if (t0 >= 4.5 && Math.round((t0 - 2) / BEAT) % 2 === 1) clap(t0);
+    if (t0 >= 9) { hat(t0 + .25); if (t0 >= 17) { hat(t0 + .125, .03); hat(t0 + .375, .03); } }
+  }
+  // F#m – D – A – E, pluck arps
+  const roots = [46.25, 73.42, 55.0, 82.41], chords = [[277.2, 370, 440], [293.7, 370, 440], [277.2, 329.6, 440], [246.9, 329.6, 415.3]];
+  const padBus = ctx.createBiquadFilter(); padBus.type = "lowpass"; padBus.frequency.value = 1600; const padG = ctx.createGain(); padG.gain.value = .5; padBus.connect(padG); padG.connect(master);
+  for (let bar = 0, t0 = 2.0; t0 < 31.5; bar++, t0 += 2) {
+    const r = roots[bar % 4], ch = chords[bar % 4];
+    for (let b = 0; b < 4; b++) osc("sawtooth", r * 2, t0 + b * BEAT, .38, .07, .01);
+    osc("sine", r, t0, 1.9, .3, .02);
+    for (const f of ch) osc("sawtooth", f, t0, 1.95, .025, .2, null, padBus);
+    if (t0 >= 4.5 && t0 < 29.5) for (let s = 0; s < 8; s++) osc("square", ch[(s * 2) % 3] * 2, t0 + s * .25, .08, .03, .002);
+  }
+  for (const t0 of [4.5, 9.0, 13.0, 21.5, 25.5]) whoosh(t0);
+  impact(17.0, .7); impact(19.5, .6); impact(25.5, .6);
+  for (const [t0, f] of [[7.2, 1320], [11.7, 1175], [15.7, 1320], [24.2, 1568], [28.3, 1568]]) { blip(t0, f); blip(t0 + .08, f * 1.5, .08); }
+  PIECES.forEach((p, i) => snap(5.1 + i * .08, 1100 - i * 90));
+  for (let i = 0; i < 24; i++) key(9.35 + i * .1, .05);
+  for (let t0 = 13.1; t0 < 16.8; t0 += .5) glitch(t0 + .25);
+  for (let n = 0; n < 15; n++) blip(17.4 + n * .07, 600 + n * 40, .04);
+  bell(18.2, 880, .1);
+  for (let i = 0; i < 4; i++) noise(21.8, 2.4, .03, "bandpass", 400 + i * 300, 2400 + i * 600, 4, 2);
+  bell(24.25, 1318.5, .12);
+  for (let i = 0; i < 10; i++) snap(25.7 + i * .24, 700 + (i % 4) * 120);
+  riser(28.6, 29.5, .18); impact(29.5, .5); bell(30.1, 880, .14); bell(31.0, 659.3, .1); bell(32.0, 440, .08);
+};
+
+// ---------- preview controls ----------
+const isRender = location.search.includes("render");
+if (!isRender) {
+  const fit = () => { const s = Math.min(innerWidth / 1080, innerHeight / 1920); $("stage").style.transform = `scale(${s})`; };
+  addEventListener("resize", fit); fit();
+  let buf, ac, src, startAt = 0, offset = 0, playing = false;
+  async function play() { ac ??= new AudioContext(); if (!buf) { const off = new OfflineAudioContext(2, Math.ceil(48000 * VIDEO.duration), 48000); await buildAudio(off); buf = await off.startRendering(); } src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start(0, offset % VIDEO.duration); startAt = ac.currentTime; playing = true; }
+  function pause() { if (!playing) return; offset += ac.currentTime - startAt; src.stop(); playing = false; }
+  const now = () => playing ? (offset + ac.currentTime - startAt) % VIDEO.duration : offset;
+  const ui = $("ui"); ui.innerHTML = `<button id=pp>play/pause</button> <input id=sc type=range min=0 max=${VIDEO.duration} step=0.01 style="width:300px">`;
+  $("pp").onclick = () => playing ? pause() : play();
+  $("sc").oninput = e => { const was = playing; pause(); offset = +e.target.value; if (was) play(); };
+  (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
+} else seek(0);
+</script>
+</body>
+</html>
