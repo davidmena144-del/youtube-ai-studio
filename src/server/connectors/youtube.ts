@@ -1,5 +1,6 @@
 import { recordQuota } from "../../core/ops";
 import { getJson, n, type ConnectorContext, type ConnectorResult, type TrendConnector, type TrendItem } from "./types";
+import { cleanSecret } from "../youtube/oauth-diagnostics";
 
 /**
  * YouTube Data API v3 — public data only (free; 10,000 units/day shared with uploads).
@@ -104,8 +105,9 @@ export function youtubeConnector(opts: { base?: string; oauthBase?: string } = {
 }
 
 async function resolveAuth(ctx: ConnectorContext, oauthBase?: string): Promise<{ key?: string; bearer?: string } | null> {
-  if (ctx.env.YT_API_KEY) return { key: ctx.env.YT_API_KEY };
-  const { YT_REFRESH_TOKEN: rt, YT_CLIENT_ID: id, YT_CLIENT_SECRET: secret } = ctx.env;
+  const apiKey = cleanSecret(ctx.env.YT_API_KEY);
+  if (apiKey) return { key: apiKey };
+  const [rt, id, secret] = [ctx.env.YT_REFRESH_TOKEN, ctx.env.YT_CLIENT_ID, ctx.env.YT_CLIENT_SECRET].map(cleanSecret);
   if (!rt || !id || !secret) return null;
   const r = await getJson<{ access_token: string }>(`${oauthBase ?? ctx.env.YT_OAUTH_BASE ?? "https://oauth2.googleapis.com"}/token`, {
     method: "POST",

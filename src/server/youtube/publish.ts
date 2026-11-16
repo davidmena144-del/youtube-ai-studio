@@ -6,6 +6,7 @@ import { one, rows, sql } from "../db/client";
 import { recordHistory } from "../history";
 import { NonRetryableError, RetryableError } from "../queue/errors";
 import { getSecret, putSecret } from "../security/secrets-store";
+import { cleanSecret } from "./oauth-diagnostics";
 import { YouTube, YouTubeApiError, QuotaExhaustedError, type TokenSet, type VideoMeta, type YtConfig } from "./client";
 
 export const TOKEN_SECRET = "youtube.oauth";
@@ -23,10 +24,12 @@ export type Manifest = {
 export type Seo = { title: string; description: string; tags: string[]; categoryId?: string };
 
 export function ytConfigFromEnv(env = process.env): YtConfig {
-  if (!env.YT_CLIENT_ID || !env.YT_CLIENT_SECRET) throw new NonRetryableError("YouTube is not connected: YT_CLIENT_ID / YT_CLIENT_SECRET missing");
+  const clientId = cleanSecret(env.YT_CLIENT_ID);
+  const clientSecret = cleanSecret(env.YT_CLIENT_SECRET);
+  if (!clientId || !clientSecret) throw new NonRetryableError("YouTube is not connected: YT_CLIENT_ID / YT_CLIENT_SECRET missing");
   return {
-    clientId: env.YT_CLIENT_ID,
-    clientSecret: env.YT_CLIENT_SECRET,
+    clientId,
+    clientSecret,
     apiBase: env.YT_API_BASE,
     analyticsBase: env.YT_ANALYTICS_BASE,
     oauthBase: env.YT_OAUTH_BASE,
@@ -36,7 +39,8 @@ export function ytConfigFromEnv(env = process.env): YtConfig {
 export async function youtubeFromStore(cfg: YtConfig, env = process.env): Promise<YouTube> {
   // Primary: refresh token obtained once via Google's OAuth Playground and kept ONLY as a GitHub
   // secret (YT_REFRESH_TOKEN). It covers YouTube Data + Analytics (the device flow cannot do Analytics).
-  if (env.YT_REFRESH_TOKEN) return new YouTube(cfg, { access_token: "", refresh_token: env.YT_REFRESH_TOKEN, expires_at: 0 });
+  const refresh = cleanSecret(env.YT_REFRESH_TOKEN);
+  if (refresh) return new YouTube(cfg, { access_token: "", refresh_token: refresh, expires_at: 0 });
   const raw = await getSecret(TOKEN_SECRET);
   if (!raw) throw new NonRetryableError("YouTube is not connected: set the YT_REFRESH_TOKEN secret (docs/SETUP.md) or run the youtube-connect workflow");
   return new YouTube(cfg, JSON.parse(raw) as TokenSet, (t) => putSecret(TOKEN_SECRET, JSON.stringify(t)));

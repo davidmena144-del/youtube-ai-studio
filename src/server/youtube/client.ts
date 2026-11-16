@@ -64,8 +64,11 @@ export class YouTube {
         grant_type: "refresh_token",
       }),
     });
-    const j = (await r.json()) as { access_token?: string; expires_in?: number; error?: string };
-    if (!r.ok || !j.access_token) throw new YouTubeApiError(r.status, j.error ?? "auth", `token refresh failed: ${j.error ?? r.status}`);
+    const j = (await r.json().catch(() => ({}))) as { access_token?: string; expires_in?: number; error?: string; error_description?: string };
+    if (!r.ok || !j.access_token) {
+      const why = j.error_description ? ` (${j.error_description})` : "";
+      throw new YouTubeApiError(r.status, j.error ?? "auth", `token refresh failed: ${j.error ?? r.status}${why}`);
+    }
     this.tokens = { ...this.tokens, access_token: j.access_token, expires_at: Date.now() + (j.expires_in ?? 3600) * 1000 };
     await this.onTokens(this.tokens);
     return this.tokens.access_token;
