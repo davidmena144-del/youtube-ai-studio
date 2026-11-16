@@ -52,6 +52,12 @@ export class YouTube {
   }
 
   // ------------------------------------------------------------------ auth
+  /** Exchanges the refresh token for an access token (no YouTube quota is used). */
+  async refreshNow(): Promise<void> {
+    this.tokens = { ...this.tokens, expires_at: 0 };
+    await this.accessToken();
+  }
+
   private async accessToken(): Promise<string> {
     if (Date.now() < this.tokens.expires_at - 60_000) return this.tokens.access_token;
     const r = await fetch(`${this.oauth}/token`, {

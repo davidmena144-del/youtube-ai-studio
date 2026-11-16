@@ -125,6 +125,14 @@ postgresql://postgres.tzmvrhixsymehvoffzvl:<PASSWORD>@<pooler-host>:5432/postgre
 | `accessNotConfigured` / `SERVICE_DISABLED` | أحد الـ APIs غير مفعّل (الخطوة 1.3) |
 | `password authentication failed` | كلمة مرور قاعدة البيانات في الرابط خاطئة |
 
+### 5ب. انتهاء رمز YouTube (التطبيق في وضع Testing)
+
+- **المدة:** في وضع Testing ينتهي رمز التجديد بعد 7 أيام.
+- **الفحص اليومي:** workflow ‏**YouTube token check** يعمل يوميًا الساعة 07:41 بتوقيت القاهرة. يجدّد رمز الوصول فقط، بلا رفع وبلا استهلاك من حصة YouTube.
+- **التنبيه:** يفشل الفحص عمدًا قبل الانتهاء بيومين، فيصلك إشعار من GitHub. ويظهر التنبيه أيضًا في تقرير المدير.
+- **الحالة الحالية:** `npm run studio -- youtube token`، أو اسألني.
+- **التجديد:** خطوات بسيطة في `docs/YOUTUBE-REAUTH.md`.
+
 ## 6. اختبار رفع خاص (حوالي 20 دقيقة انتظار)
 
 1. افتح **Actions ← YouTube private test upload ← Run workflow**.

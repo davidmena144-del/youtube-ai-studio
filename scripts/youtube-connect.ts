@@ -11,6 +11,7 @@ import { putSecret } from "../src/server/security/secrets-store";
 import { pollDeviceFlow, startDeviceFlow, YouTube, YouTubeApiError } from "../src/server/youtube/client";
 import { checkOAuthEnv, cleanSecret, explainTokenError } from "../src/server/youtube/oauth-diagnostics";
 import { TOKEN_SECRET, ytConfigFromEnv } from "../src/server/youtube/publish";
+import { appStatusFromEnv, assess, noteToken, ownerMessage } from "../src/server/youtube/token-status";
 
 /** Prints one line per verification step and mirrors it to the GitHub job summary. No secret values. */
 async function report(lines: string[]) {
@@ -39,7 +40,11 @@ async function main() {
       steps.push(`OK   YouTube Analytics API (${rows.length} video rows, last 28 days)`);
       const local = await getChannel();
       if (local) await one(sql`UPDATE channels SET youtube_channel_id = ${channel.id}, title = ${channel.title}, updated_at = now() WHERE id = ${local.id}::uuid RETURNING id`);
-      await report(["### YouTube connection", ...steps]);
+      // Start the 7-day clock for a new token (Testing mode); fingerprint + dates only, never the token.
+      const st = await noteToken(refresh, { appStatus: appStatusFromEnv(process.env), result: "ok" });
+      const a = assess(st, new Date());
+      steps.push(`OK   token expiry tracked: ${a.expires_at ? `expires about ${a.expires_at} (${a.days_left} days left)` : "no 7-day limit"}`);
+      await report(["### YouTube connection", ...steps, ownerMessage(a)]);
       console.log(`Connected: "${channel.title}" (${channel.id}). Data API OK; Analytics API OK (${rows.length} video rows).`);
       return;
     } catch (e) {

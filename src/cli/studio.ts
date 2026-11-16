@@ -92,7 +92,8 @@ export const HELP = `studio <command>
   decision log --type <t> --summary <s> [--rationale <r>] [--project <id>] [--run <id>] [--expected <e>]
   memory set --kind <k> --key <key> --content <c> [--confidence 0.7] [--source <s>] | memory list [--kind <k>]
   message send --from <a> --to <b> --type <t> --key <dedupe> --body-file f [--project <id>] [--hop n]
-  report [--since '1 day']               owner digest: published, failures, warnings, queue, budget
+  report [--since '1 day']               owner digest: published, failures, warnings, queue, budget, youtube_token
+  youtube token                          YouTube refresh-token status: issued, expires, days left, level
   analytics summary [--min-n 5] | analytics enqueue
   trends summary [--days 7] | trends collect     Trend Intelligence (YouTube, TikTok, Facebook, Wikipedia)
   competitor add --platform youtube|tiktok|facebook --id <channel/page id> [--name <n>] | competitor list`;
@@ -333,6 +334,11 @@ export async function runCli(argv: string[]): Promise<CliResult> {
         const id = await fn<string>(sql`SELECT app.send_message(${ch.id}::uuid, ${str(flags, "project") ?? null}::uuid, ${need(flags, "from")}, ${need(flags, "to")},
           ${need(flags, "type")}, ${JSON.stringify(readJson(flags, "body-file"))}::jsonb, ${Number(str(flags, "hop") ?? 0)}::int, ${need(flags, "key")}) AS r`);
         return ok({ messageId: id });
+      }
+
+      case "youtube": {
+        if (sub !== "token") break;
+        return ok({ youtubeToken: await fn(sql`SELECT app.youtube_token_status() AS r`) });
       }
 
       case "report": {

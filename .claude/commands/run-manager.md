@@ -54,6 +54,7 @@ publications or quotas, and cannot delete anything. If something needs a policy 
 6. **Record decisions** that change direction (`app.log_decision`) with a rationale and expected outcome.
 7. **Finish.** Run `select app.finish_manager_run(run, owner, 'finished'|'noop'|'aborted', summary, actions, model_calls, agenda_json, fingerprint, abort_reason)`.
 8. **Daily digest.** If this is the first run after 20:00 channel time, post `select app.report('<ch>', '1 day')` as a short Arabic summary in your final message. That message is the owner's report.
+   **YouTube token:** in every run, read `select app.youtube_token_status()`. If `level` is `warn` or `expired`, start your final message with one Arabic line: when the token expires (or that it expired), and "جدّد الرمز باتباع docs/YOUTUBE-REAUTH.md". Never try to renew the token yourself; Google sign-in is the owner's step.
 
 ## Trend data
 
