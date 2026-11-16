@@ -1,0 +1,36 @@
+name: YouTube delete test video
+
+# Deletes ONE test video on request. Refuses anything that is not this project's own test upload
+# (must be on the connected channel and carry the "[ys:test:" marker in its description).
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "YouTube video id of the test video to delete (11 characters)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev --ignore-scripts # no dependency lifecycle scripts in jobs that hold secrets
+      - name: Delete (only ys:test uploads on this channel)
+        run: node --import tsx scripts/youtube-delete-test.ts "$VIDEO_ID"
+        env:
+          VIDEO_ID: ${{ inputs.video_id }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}

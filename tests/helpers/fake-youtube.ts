@@ -92,6 +92,17 @@ export async function startFakeYouTube() {
     if (url.pathname === "/youtube/v3/playlistItems") {
       return json(200, { items: state.videos.map((v) => ({ snippet: { description: v.resource.snippet.description, resourceId: { videoId: v.id } } })) });
     }
+    if (url.pathname === "/youtube/v3/videos" && req.method === "DELETE") {
+      const i = state.videos.findIndex((x) => x.id === url.searchParams.get("id"));
+      if (i < 0) return json(404, { error: { message: "video not found", errors: [{ reason: "videoNotFound" }] } });
+      state.videos.splice(i, 1);
+      res.writeHead(204);
+      return res.end();
+    }
+    if (url.pathname === "/youtube/v3/videos" && url.searchParams.get("part") === "snippet") {
+      const v = state.videos.find((x) => x.id === url.searchParams.get("id"));
+      return json(200, { items: v ? [{ id: v.id, snippet: { channelId: "UC1", title: v.resource.snippet.title, description: v.resource.snippet.description } }] : [] });
+    }
     if (url.pathname === "/youtube/v3/videos") {
       if (state.videosListFailOnce) {
         state.videosListFailOnce = false;

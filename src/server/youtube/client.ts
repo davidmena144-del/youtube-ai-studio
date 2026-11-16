@@ -23,7 +23,7 @@ export const SCOPES = [
 ].join(" ");
 
 /** Quota costs (units) per Google's published table; conservative where it changed over time. */
-export const COST = { insert: 1600, thumbnail: 50, caption: 400, list: 1 } as const;
+export const COST = { insert: 1600, thumbnail: 50, caption: 400, list: 1, delete: 50 } as const;
 
 export class QuotaExhaustedError extends Error {}
 export class YouTubeApiError extends Error {
@@ -216,6 +216,18 @@ export class YouTube {
       `${this.api}/youtube/v3/videos?part=status,statistics&id=${encodeURIComponent(videoId)}`,
     );
     return j.items?.[0] ?? null;
+  }
+
+  /** Title, description and owning channel of one video (null when it does not exist / is not visible). */
+  async videoSnippet(videoId: string) {
+    const j = await this.call<{ items: { id: string; snippet: { channelId: string; title: string; description: string } }[] }>(
+      `${this.api}/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}`,
+    );
+    return j.items?.[0] ?? null;
+  }
+
+  async deleteVideo(videoId: string): Promise<void> {
+    await this.call(`${this.api}/youtube/v3/videos?id=${encodeURIComponent(videoId)}`, { method: "DELETE" }, COST.delete);
   }
 
   // ------------------------------------------------------------------ analytics
