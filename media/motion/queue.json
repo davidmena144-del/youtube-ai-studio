@@ -2,8 +2,6 @@
   "_doc": "Daily Shorts queue (owner-approved public publishing). youtube-daily-short.yml publishes the first page whose ys:test:<page> marker is not yet on the channel. Add new pages to the end.",
   "pages": [
     "takka01",
-    "takka02",
-    "takka03",
-    "takka04"
+    "takka02"
   ]
 }
