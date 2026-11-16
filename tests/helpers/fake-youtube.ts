@@ -21,6 +21,8 @@ export async function startFakeYouTube() {
     deviceApproved: false,
     videosListFailOnce: false, // videos.list answers 400 once (non-retryable) — after the upload
     quotaExceededOnInit: false, // upload init answers 403 quotaExceeded
+    processedAfterReads: Infinity, // videos.list reports uploadStatus "processed" after this many reads
+    statusReads: 0,
   };
   let seq = 0;
   const server = http.createServer(async (req, res) => {
@@ -96,7 +98,8 @@ export async function startFakeYouTube() {
         return json(400, { error: { message: "bad request", errors: [{ reason: "badRequest" }] } });
       }
       const v = state.videos.find((x) => x.id === url.searchParams.get("id"));
-      return json(200, { items: v ? [{ id: v.id, status: { uploadStatus: "uploaded", ...v.resource.status }, statistics: { viewCount: "0" } }] : [] });
+      const uploadStatus = ++state.statusReads > state.processedAfterReads ? "processed" : "uploaded";
+      return json(200, { items: v ? [{ id: v.id, status: { uploadStatus, ...v.resource.status }, statistics: { viewCount: "0" } }] : [] });
     }
     if (url.pathname === "/upload/youtube/v3/thumbnails/set") {
       if (state.thumbnailForbidden) return json(403, { error: { message: "channel not verified for custom thumbnails", errors: [{ reason: "forbidden" }] } });
