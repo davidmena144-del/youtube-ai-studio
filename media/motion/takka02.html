@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>تكّة المثال</title>
+<style>
+/*@FONTS@*/
+html,body{margin:0;background:#07070A;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:#0B0B10;transform-origin:0 0}
+#cam{position:absolute;inset:0;transform-origin:540px 900px}
+.L{position:absolute;inset:0}
+.a{position:absolute;white-space:nowrap}
+.c{left:0;right:0;text-align:center}
+.k{font-family:"Kufi",sans-serif;font-weight:700}
+.kr{font-family:"Kufi",sans-serif;font-weight:400}
+.m{font-family:"Mono",monospace;direction:ltr}
+.hl{background:#FFD23F;color:#0B0B10;padding:0 22px;border-radius:14px}
+.hr{background:#E62E3A;color:#fff;padding:0 22px;border-radius:14px}
+#phone{position:absolute;left:250px;top:470px;width:640px;height:850px;border-radius:64px;background:#111118;border:6px solid #2E2E3A;box-shadow:0 30px 90px rgba(0,0,0,.6);overflow:hidden}
+#notch{position:absolute;top:18px;left:50%;width:150px;height:34px;margin-left:-75px;border-radius:17px;background:#05050A}
+#pHead{position:absolute;top:0;left:0;right:0;height:128px;border-bottom:2px solid #24242E;display:flex;align-items:flex-end;gap:16px;padding:0 34px 20px;box-sizing:border-box;direction:ltr}
+#pin{position:absolute;left:24px;right:24px;bottom:24px;min-height:88px;border-radius:30px;background:#1D1D26;border:3px solid #34343F;display:flex;align-items:center;padding:0 26px 0 100px;direction:rtl}
+#psend{position:absolute;left:38px;bottom:38px;width:62px;height:62px;border-radius:50%;background:#FFD23F;display:flex;align-items:center;justify-content:center}
+.ub{position:absolute;right:26px;max-width:500px;border-radius:28px 28px 8px 28px;background:#2A2412;border:3px solid #FFD23F;color:#fff;padding:14px 24px;font-size:33px;line-height:1.5;white-space:normal}
+.att{margin-top:10px;display:inline-block;border-radius:16px;background:#FFD23F;color:#0B0B10;padding:2px 18px;font-size:28px}
+.rb{position:absolute;left:26px;right:66px;background:#1C1C25;border-radius:28px 28px 28px 8px;padding:18px 26px;color:#E9E9EE;font-size:33px;line-height:1.55;white-space:normal}
+.dot{display:inline-block;width:16px;height:16px;border-radius:50%;background:#8A8A96;margin:0 6px}
+#note{position:absolute;left:150px;top:560px;width:780px;box-sizing:border-box;padding:30px 40px 40px;border-radius:20px;background:#FFD23F;color:#0B0B10;box-shadow:0 24px 70px rgba(0,0,0,.6);overflow:hidden;opacity:0}
+#noteH{font-size:34px;opacity:.75;display:flex;justify-content:space-between;align-items:center}
+#noteT{font-size:46px;line-height:1.55;margin-top:12px;white-space:normal;min-height:142px}
+#scan{position:absolute;left:0;right:0;height:16px;background:#fff;box-shadow:0 0 40px 18px rgba(255,255,255,.85);opacity:0}
+.tag{position:absolute;border-radius:40px;border:3px solid #FFD23F;background:#15151C;color:#fff;padding:6px 26px;font-size:36px}
+#flash{position:absolute;inset:0;background:#FFD23F;opacity:0;mix-blend-mode:screen;pointer-events:none}
+#grain{position:absolute;inset:0;pointer-events:none}
+#vig{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%);pointer-events:none}
+#ui{position:fixed;left:8px;bottom:8px;z-index:9;font:14px sans-serif;color:#fff;direction:ltr}
+</style>
+</head>
+<body>
+<div id="stage">
+ <div id="cam">
+  <canvas id="bg" width="1080" height="1920" class="L"></canvas>
+  <div id="txt" class="L"></div>
+  <div id="phone">
+   <div id="notch"></div>
+   <div id="pHead"><div class="m" style="width:58px;height:58px;border-radius:50%;background:#FFD23F;color:#0B0B10;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700">C</div><div><div class="m" style="font-size:32px;color:#fff">Claude</div><div class="m" style="font-size:20px;color:#2BD576">online</div></div></div>
+   <div id="pmsgs" class="L"></div>
+   <div id="pin"><span id="pinTxt" class="kr" style="font-size:32px;color:#fff"></span><span id="caret" style="display:inline-block;width:4px;height:40px;background:#FFD23F;margin-right:6px"></span></div>
+   <div id="psend"><svg width="32" height="32" viewBox="0 0 34 34"><path d="M17,28 L17,7 M8,15 L17,6 L26,15" stroke="#0B0B10" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+  </div>
+  <div id="top" class="L">
+   <div id="note" class="kr"><div id="noteH"><span class="k">مثال من ردودي</span><span class="m" style="font-size:28px">&lt;example&gt;</span></div><div id="noteT"></div><div id="scan"></div></div>
+  </div>
+  <svg id="art" class="L" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+ </div>
+ <div id="flash"></div>
+ <div id="vig"></div>
+ <canvas id="grain" width="1080" height="1920"></canvas>
+</div>
+<div id="ui"></div>
+<script>
+/* «تكّة المثال: اديله مثال… يكتب بأسلوبك» — no narration.
+  0.0  HOOK     «Claude بيكتب زي الروبوت؟» typed + glitch, robot-walking stickman with an antenna
+  3.0  TWIST    «عايزه يكتب بأسلوبك؟» → «التكّة في كلمة واحدة» → huge «مثال»
+  6.5  PROBLEM  phone chat: «رد على عميل زعلان» → stiff formal reply → ✗ «رسمي… ومش شبهك»
+ 13.4  TAKKA    big switch click (antenna pops off) → yellow sticky note with the owner's own reply,
+                scanned → style tags (ودود / مصري / قصير) → note flies into the chat as particles
+ 23.0  RESULT   reply rewritten in the owner's tone → ✓ + confetti; «المثال بيشرح نفسه»
+ 31.0  RULE     «مثال واحد = أسلوب كامل»
+ 35.0  OUTRO    «تكّة» logo, switch ON, «كل حاجة ليها تكّة», follow
+*/
+const VIDEO = { w: 1080, h: 1920, duration: 40 };
+window.VIDEO = VIDEO;
+const INK = "#0B0B10", Y = "#FFD23F", R = "#E62E3A", W = "#FFFFFF", GOOD = "#2BD576";
+function spring(t, w = 14, z = 0.75) { if (t <= 0) return 0; if (z >= 1) return 1 - Math.exp(-w * t) * (1 + w * t); const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); }
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const eOut = x => 1 - Math.pow(1 - clamp(x), 4);
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const rng = s => () => (s = (s + 0x6D2B79F5) | 0, s = Math.imul(s ^ (s >>> 15), 1 | s), s ^= s + Math.imul(s ^ (s >>> 7), 61 | s), ((s ^ (s >>> 14)) >>> 0) / 4294967296);
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const svg = (tag, at, p = $("art")) => { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); p.appendChild(e); return e; };
+const div = (cls, html, p = $("txt")) => { const e = document.createElement("div"); e.className = cls; e.innerHTML = html; p.appendChild(e); e.style.opacity = 0; return e; };
+
+// ---------- timeline ----------
+const CLICK = 13.4, RES = 23.0, OK = 26.4, RULE = 31.0, OUT = 35.0;
+const IMPACTS = [3.0, 6.5, RES, 31.2, 35.2];
+const WHIPS = [3.0, 6.5, CLICK, RES, RULE, OUT];
+const ROBOT_STEPS = []; for (let t0 = 0; t0 < 2.95; t0 += .43) ROBOT_STEPS.push(t0);
+const TYPING = [];
+function typeSched(text, t0, cps) { const a = [...text], s = { text, t0, cps, t1: t0 + a.length / cps }; for (let i = 0; i < a.length; i++) if (a[i] !== " ") TYPING.push(t0 + i / cps); return s; }
+const typed = (s, t) => { const a = [...s.text]; return a.slice(0, Math.floor(clamp((t - s.t0) * s.cps, 0, a.length))).join(""); };
+const T_H1 = typeSched("Claude بيكتب", 0.2, 16);
+const T_H2 = typeSched("زي الروبوت؟", 1.0, 13);
+const T_ASK = typeSched("رد على عميل زعلان: الأوردر اتأخر", 7.0, 17);
+const FORMAL = "عزيزي العميل، نعتذر عن أي إزعاج ناتج عن التأخير، ونعمل على حل المشكلة في أقرب وقت ممكن.";
+const T_FORMAL = typeSched(FORMAL, 10.0, 48);
+const EXAMPLE = "يا باشا حقك علينا، الطلب في السكة وعليه حاجة حلوة مننا.";
+const T_EX = typeSched(EXAMPLE, 14.7, 22);
+const FRIENDLY = ["يا فندم حقك علينا!", "الأوردر اتأخر، وده مش عادتنا.", "هو في السكة دلوقتي… والحلو علينا."];
+const T_FR = FRIENDLY.map((l, i) => typeSched(l, RES + .4 + [0, .8, 1.9][i], 30));
+const TAGS = [["نبرة ودودة", 17.9], ["لهجة مصري", 18.3], ["رد قصير", 18.7]];
+
+// ---------- text elements ----------
+const H1 = div("a c k", ""), H2 = div("a c k", ""), H3 = div("a c k", ""), CAP = div("a c k", ""), BIGN = div("a c k", ""), ST = div("a c k", ""), EQ = div("a c k", "=");
+const TG = TAGS.map(([s]) => div("tag k", s, $("top")));
+const LOGO = div("a c k", "تكة"), LOGOT = div("a c k", "كل حاجة ليها تكّة"), LOGOF = div("a c k", "تابع عشان التكّة الجاية");
+
+// ---------- stickman host (SVG, pose-interpolated) ----------
+const defs = svg("defs", {}); defs.innerHTML = `<radialGradient id="hglow"><stop offset="0" stop-color="#FFD23F" stop-opacity=".9"/><stop offset=".5" stop-color="#FFB703" stop-opacity=".3"/><stop offset="1" stop-color="#FFB703" stop-opacity="0"/></radialGradient>
+ <radialGradient id="lg"><stop offset="0" stop-color="#FFD23F" stop-opacity=".85"/><stop offset=".5" stop-color="#FFB703" stop-opacity=".3"/><stop offset="1" stop-color="#FFB703" stop-opacity="0"/></radialGradient>
+ <linearGradient id="trk" x1="0" x2="1"><stop offset="0" stop-color="#B5121D"/><stop offset="1" stop-color="#FF3B47"/></linearGradient>`;
+const host = svg("g", {});
+const glow = svg("circle", { r: 120, fill: "url(#hglow)", opacity: 0 }, host);
+const rays = [0, 1, 2, 3, 4].map(() => svg("line", { stroke: Y, "stroke-width": 9, "stroke-linecap": "round", opacity: 0 }, host));
+const antenna = svg("g", {}, host);
+const antL = svg("line", { stroke: W, "stroke-width": 8, "stroke-linecap": "round" }, antenna), antB = svg("circle", { r: 11, fill: R }, antenna);
+const body = svg("path", { fill: "none", stroke: W, "stroke-width": 15, "stroke-linecap": "round", "stroke-linejoin": "round" }, host);
+const head = svg("circle", { r: 36, fill: INK, stroke: W, "stroke-width": 12 }, host);
+const eyeL = svg("circle", { r: 5.5, fill: W }, host), eyeR = svg("circle", { r: 5.5, fill: W }, host);
+const mouth = svg("path", { fill: "none", stroke: W, "stroke-width": 6, "stroke-linecap": "round" }, host);
+const POSES = {
+  stand:  { hd: [0, -178], nk: [0, -140], hp: [0, 0], le: [-30, -92], lh: [-42, -40], re: [30, -92], rh: [42, -40], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+  robotA: { hd: [0, -180], nk: [0, -140], hp: [0, 0], le: [-60, -124], lh: [-60, -70], re: [60, -124], rh: [60, -178], lk: [-30, 60], lf: [-30, 128], rk: [14, 64], rf: [14, 128] },
+  robotB: { hd: [0, -180], nk: [0, -140], hp: [0, 0], le: [-60, -124], lh: [-60, -178], re: [60, -124], rh: [60, -70], lk: [-14, 64], lf: [-14, 128], rk: [30, 60], rf: [30, 128] },
+  point:  { hd: [4, -178], nk: [0, -140], hp: [0, 0], le: [-30, -92], lh: [-42, -40], re: [62, -126], rh: [118, -168], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+  shrug:  { hd: [0, -172], nk: [0, -140], hp: [0, 0], le: [-62, -112], lh: [-84, -146], re: [62, -112], rh: [84, -146], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+  cheer:  { hd: [0, -184], nk: [0, -146], hp: [0, -6], le: [-50, -176], lh: [-62, -238], re: [50, -176], rh: [62, -238], lk: [-26, 56], lf: [-40, 118], rk: [26, 56], rf: [40, 118] },
+  think:  { hd: [-4, -178], nk: [0, -140], hp: [0, 0], le: [-30, -92], lh: [-42, -40], re: [44, -98], rh: [14, -150], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+  wave:   { hd: [0, -178], nk: [0, -140], hp: [0, 0], le: [-30, -92], lh: [-42, -40], re: [58, -150], rh: [70, -210], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+};
+// [time, pose, mood, blend seconds]
+const HOST = [...ROBOT_STEPS.map((t0, i) => [t0, i % 2 ? "robotB" : "robotA", "flat", .06]),
+  [3.0, "shrug", "o"], [4.9, "point", "smile"], [6.5, "think", "flat"], [12.0, "shrug", "sad"], [CLICK - .1, "point", "smile"],
+  [14.2, "think", "smile"], [17.8, "point", "smile"], [20.2, "think", "smile"], [RES, "point", "big"], [OK, "cheer", "big"],
+  [28.4, "point", "smile"], [RULE, "cheer", "big"], [33.3, "point", "smile"], [OUT, "wave", "big"]];
+function poseAt(t) {
+  let i = 0; while (i + 1 < HOST.length && HOST[i + 1][0] <= t) i++;
+  const cur = POSES[HOST[i][1]], prev = POSES[HOST[Math.max(0, i - 1)][1]], k = i ? eOut(seg(t, HOST[i][0], HOST[i][0] + (HOST[i][3] || .28))) : 1;
+  const p = {}; for (const j in cur) p[j] = [lerp(prev[j][0], cur[j][0], k), lerp(prev[j][1], cur[j][1], k)];
+  return { p, mood: HOST[i][2] };
+}
+const AHA = [CLICK, OK, 31.2, 36.4];
+function drawHost(t, x, y, s, a) {
+  const { p, mood } = poseAt(t), robot = t < 3, bob = robot ? 0 : Math.sin(t * Math.PI * 2) * 4, X = j => x + p[j][0] * s, Yy = j => y + (p[j][1] + bob) * s;
+  host.setAttribute("opacity", a);
+  body.setAttribute("d", `M${X("nk")},${Yy("nk")} L${X("hp")},${Yy("hp")} M${X("nk")},${Yy("nk") + 20 * s} L${X("le")},${Yy("le")} L${X("lh")},${Yy("lh")} M${X("nk")},${Yy("nk") + 20 * s} L${X("re")},${Yy("re")} L${X("rh")},${Yy("rh")} M${X("hp")},${Yy("hp")} L${X("lk")},${Yy("lk")} L${X("lf")},${Yy("lf")} M${X("hp")},${Yy("hp")} L${X("rk")},${Yy("rk")} L${X("rf")},${Yy("rf")}`);
+  body.setAttribute("stroke-width", 15 * s);
+  const hx = X("hd"), hy = Yy("hd");
+  head.setAttribute("cx", hx); head.setAttribute("cy", hy); head.setAttribute("r", 36 * s); head.setAttribute("stroke-width", 12 * s);
+  let lit = 0; for (const c of AHA) { const d = t - c; if (d >= 0 && d < 3.2) lit = Math.max(lit, d < .15 ? d / .15 : Math.exp(-(d - .15) * 1.1)); }
+  head.setAttribute("fill", lit > .05 ? `rgba(255,210,63,${lit.toFixed(3)})` : INK);
+  head.setAttribute("stroke", lit > .4 ? Y : W);
+  glow.setAttribute("cx", hx); glow.setAttribute("cy", hy); glow.setAttribute("r", 130 * s); glow.setAttribute("opacity", lit);
+  rays.forEach((r, i) => { const ang = (-150 + i * 30) * Math.PI / 180, r1 = 52 * s * (1 + lit * .2), r2 = r1 + 34 * s * lit; r.setAttribute("x1", hx + Math.cos(ang) * r1); r.setAttribute("y1", hy + Math.sin(ang) * r1); r.setAttribute("x2", hx + Math.cos(ang) * r2); r.setAttribute("y2", hy + Math.sin(ang) * r2); r.setAttribute("opacity", lit > .1 ? lit : 0); });
+  // the "robot" antenna: on until the تكّة, then it pops off and flies away
+  const d = t - CLICK, fly = d > 0 ? d : 0, aa = d > 0 ? 1 - seg(d, .3, .8) : 1;
+  const ax = hx + fly * 260 * s, ay = hy - 36 * s - fly * 1100 * s + fly * fly * 900 * s, rot = fly * 720;
+  antenna.setAttribute("opacity", aa); antenna.setAttribute("transform", `rotate(${rot.toFixed(1)} ${ax} ${ay - 30 * s})`);
+  antL.setAttribute("x1", ax); antL.setAttribute("y1", ay); antL.setAttribute("x2", ax); antL.setAttribute("y2", ay - 52 * s); antL.setAttribute("stroke-width", 8 * s);
+  const blink = robot && Math.floor(t * 4) % 2 ? .35 : 1;
+  antB.setAttribute("cx", ax); antB.setAttribute("cy", ay - 60 * s); antB.setAttribute("r", 12 * s); antB.setAttribute("opacity", blink);
+  const ink = lit > .4 ? INK : W;
+  for (const [e, dx] of [[eyeL, -12], [eyeR, 12]]) { e.setAttribute("cx", hx + dx * s); e.setAttribute("cy", hy - 4 * s); e.setAttribute("r", (mood === "o" ? 6.5 : 5.5) * s); e.setAttribute("fill", ink); }
+  const mx = hx, my = hy + 14 * s;
+  const M = { smile: `M${mx - 12 * s},${my} Q${mx},${my + 10 * s} ${mx + 12 * s},${my}`, big: `M${mx - 15 * s},${my - 2 * s} Q${mx},${my + 16 * s} ${mx + 15 * s},${my - 2 * s}`,
+    sad: `M${mx - 12 * s},${my + 6 * s} Q${mx},${my - 4 * s} ${mx + 12 * s},${my + 6 * s}`, flat: `M${mx - 10 * s},${my + 2 * s} L${mx + 10 * s},${my + 2 * s}`, o: `M${mx - 5 * s},${my + 4 * s} a${5 * s},${6 * s} 0 1 0 ${10 * s},0 a${5 * s},${6 * s} 0 1 0 ${-10 * s},0` };
+  mouth.setAttribute("d", M[mood] || M.smile); mouth.setAttribute("stroke", ink); mouth.setAttribute("stroke-width", 6 * s);
+  return { hx, hy };
+}
+
+// ---------- big switch, stamps, particles, confetti, logo ----------
+const big = svg("g", { opacity: 0 });
+const bigTrack = svg("rect", { x: -130, y: -64, width: 260, height: 128, rx: 64, fill: "#34343F" }, big);
+const bigKnob = svg("circle", { cx: -64, cy: 0, r: 50, fill: "#8A8A96" }, big);
+const stamp = svg("g", { opacity: 0 });
+const stampC = svg("circle", { r: 70, fill: "none", "stroke-width": 12 }, stamp);
+const stampP = svg("path", { fill: "none", "stroke-width": 16, "stroke-linecap": "round", "stroke-linejoin": "round" }, stamp);
+const parts = (() => { const r = rng(21), a = []; for (let i = 0; i < 46; i++) a.push({ x: 190 + r() * 700, y: 600 + r() * 300, dl: r() * .45, s: 8 + r() * 14, wob: (r() - .5) * 260 }); return a; })();
+const partG = svg("g", {}); const partE = parts.map(p => svg("rect", { width: p.s, height: p.s, rx: 3, fill: Y, opacity: 0 }, partG));
+const conf = (() => { const r = rng(9), a = []; for (let i = 0; i < 70; i++) a.push({ ang: r() * Math.PI * 2, sp: 380 + r() * 520, col: [Y, R, W, "#2EF2FF"][i % 4], w: 10 + r() * 14, h: 6 + r() * 8, spin: (r() - .5) * 14 }); return a; })();
+const confG = svg("g", {}); const confE = conf.map(c => svg("rect", { width: c.w, height: c.h, fill: c.col, opacity: 0 }, confG));
+const logoG = svg("g", { opacity: 0 });
+logoG.innerHTML = `<rect id="lgTrack" x="390" y="1130" width="300" height="78" rx="39" fill="url(#trk)"/><circle id="lgKnob" cx="650" cy="1169" r="32" fill="#fff"/>`;
+const logoSpark = svg("g", { opacity: 0 });
+
+// ---------- background: drifting blueprint grid + moving glow ----------
+const bgx = $("bg").getContext("2d");
+const SCN = [[0, "#14203A"], [3, "#2A2410"], [6.5, "#1A1530"], [CLICK, "#2A2410"], [RES, "#0F2A1A"], [RULE, "#2A0F14"], [OUT, "#2A2410"]];
+function drawBg(t) {
+  bgx.fillStyle = INK; bgx.fillRect(0, 0, 1080, 1920);
+  let i = 0; while (i + 1 < SCN.length && SCN[i + 1][0] <= t) i++;
+  const gx = 540 + Math.cos(t * .35) * 200, gy = 900 + Math.sin(t * .27) * 220;
+  const g = bgx.createRadialGradient(gx, gy, 40, gx, gy, 950); g.addColorStop(0, SCN[i][1]); g.addColorStop(1, "rgba(11,11,16,0)");
+  bgx.fillStyle = g; bgx.fillRect(0, 0, 1080, 1920);
+  bgx.strokeStyle = "rgba(255,255,255,.05)"; bgx.lineWidth = 2;
+  const off = (t * 22) % 90;
+  bgx.beginPath();
+  for (let x = -90 + off; x < 1080; x += 90) { bgx.moveTo(x, 0); bgx.lineTo(x, 1920); }
+  for (let y = -90 + off * .6; y < 1920; y += 90) { bgx.moveTo(0, y); bgx.lineTo(1080, y); }
+  bgx.stroke();
+  bgx.fillStyle = "rgba(255,210,63,.10)";
+  for (let x = -90 + off; x < 1080; x += 180) for (let y = -90 + off * .6; y < 1920; y += 180) bgx.fillRect(x - 3, y - 3, 6, 6);
+}
+const grain = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 12; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
+const gctx = $("grain").getContext("2d");
+
+// ---------- helpers ----------
+function show(el, html, st, a) { if (html != null && el._h !== html) { el.innerHTML = html; el._h = html; } Object.assign(el.style, st); el.style.opacity = a; }
+const slam = (t, t0) => { const k = spring(t - t0, 17, .55); return { s: lerp(1.6, 1, k), a: clamp((t - t0) / .08), y: (1 - k) * 60 }; };
+const caret = t => (Math.floor(t * 2.4) % 2 ? 1 : 0);
+const shakeAt = t => { let s = 0; for (const c of [...IMPACTS, CLICK, 12.0, OK, 2.6]) { const d = t - c; if (d >= 0 && d < .45) s += Math.exp(-d * 9) * 14 * Math.sin(d * 70); } return s; };
+const zoomPunch = t => { let z = 0; for (const c of [CLICK, 6.5, RES, OK, 31.2]) { const d = t - c; if (d >= 0 && d < .6) z += .045 * Math.exp(-d * 7); } return z; };
+
+// ---------- seek ----------
+function seek(t) {
+  t = clamp(t, 0, VIDEO.duration - 1e-6);
+  drawBg(t);
+  const sh = shakeAt(t), z = zoomPunch(t);
+  let whipX = 0; for (const w of WHIPS) { const d = t - w; if (d > -.12 && d < .12) whipX += Math.sign(-d || 1) * (1 - Math.abs(d) / .12) * 140; }
+  $("cam").style.transform = `translate(${(sh + whipX).toFixed(1)}px,${(sh * .4).toFixed(1)}px) scale(${(1 + z).toFixed(4)})`;
+  let fl = 0; for (const c of [CLICK, RES, 39.2]) { const d = t - c; if (d >= 0 && d < .35) fl = Math.max(fl, .55 * Math.exp(-d * 12)); }
+  $("flash").style.opacity = fl.toFixed(3);
+  for (const e of [H1, H2, H3, CAP, BIGN, ST, EQ, LOGO, LOGOT, LOGOF, ...TG]) { e.style.opacity = 0; e.style.transform = "none"; e.style.textShadow = "none"; if (!e.classList.contains("tag")) e.style.left = ""; }
+
+  // phone
+  const phoneOn = t >= 6.5 && t < RULE;
+  const pi = eOut(seg(t, 6.5, 6.95)), po = ease(seg(t, RULE - .45, RULE));
+  const noteDim = t >= 14.0 && t < 20.3 ? 1 - .7 * eOut(seg(t, 14.0, 14.4)) * (1 - seg(t, 19.9, 20.3)) : 1;
+  $("phone").style.opacity = phoneOn ? noteDim : 0;
+  const clickKick = t >= CLICK && t < CLICK + .5 ? Math.exp(-(t - CLICK) * 8) * Math.sin((t - CLICK) * 50) * 4 : 0;
+  $("phone").style.transform = `translateY(${((1 - pi) * 1400 + po * -1500).toFixed(0)}px) rotate(${((1 - pi) * -5 + clickKick).toFixed(2)}deg)`;
+
+  // host placement
+  let hx = 150, hy = 1530, hs = .8, ha = 1;
+  if (t < 3) { hx = 540; hy = 1330; hs = 1.5; }
+  else if (t < 6.5) { hx = 540; hy = 1420; hs = 1.15; }
+  else if (t >= RULE) { hx = 540; hy = 1500; hs = 1.0; }
+  if (t >= OUT) ha = 1 - seg(t, OUT, OUT + .3);
+  if (t < 3) hx += (Math.floor(t / .43) % 2 ? 1 : -1) * 18;
+  drawHost(t, hx, hy, hs, ha);
+
+  // S0 HOOK
+  if (t < 3.05) {
+    const a = 1 - seg(t, 2.85, 3.0);
+    show(H1, typed(T_H1, t) + (t < T_H1.t1 ? '<span style="color:#FFD23F">|</span>' : ""), { top: "400px", fontSize: "96px", color: W }, a);
+    const done = t >= T_H2.t1;
+    show(H2, done ? 'زي <span class="hr">الروبوت</span>؟' : typed(T_H2, t) + (t > .95 && caret(t) ? '<span style="color:#FFD23F">|</span>' : ""), { top: "550px", fontSize: "118px", color: W }, a);
+    const gl = (t > 2.0 && t < 2.18) || (t > 2.5 && t < 2.72);
+    if (gl) { H2.style.transform = `translateX(${Math.sin(t * 170) * 16}px) skewX(${Math.sin(t * 90) * 8}deg)`; H2.style.textShadow = "7px 0 #2EF2FF,-7px 0 #E62E3A"; }
+    show(CAP, '<span class="m" style="font-size:44px;color:#8A8A96">beep · boop · beep</span>', { top: "770px" }, clamp((t - .6) / .3) * a * (Math.floor(t * 3) % 2 ? .6 : 1));
+  }
+  // S1 TWIST
+  if (t >= 3 && t < 6.55) {
+    const a = 1 - seg(t, 6.3, 6.5);
+    const s1 = slam(t, 3.05);
+    show(H1, "عايزه يكتب بأسلوبك إنت؟", { top: "380px", fontSize: "76px", color: "#C9C9D4", transform: `translateY(${s1.y}px)` }, s1.a * a);
+    const s2 = slam(t, 4.0);
+    show(H3, "التكّة في كلمة واحدة", { top: "500px", fontSize: "64px", color: Y, transform: `translateY(${s2.y}px)` }, s2.a * a);
+    const s3 = slam(t, 4.9);
+    show(BIGN, "مثال", { top: "600px", fontSize: "290px", color: W, transform: `scale(${s3.s})`, textShadow: "0 14px 0 #E62E3A" }, s3.a * a);
+  }
+
+  // phone contents
+  const msgs = $("pmsgs");
+  if (phoneOn) {
+    let inTxt = "", car = 0;
+    if (t < 9.1) { inTxt = typed(T_ASK, t); car = t >= 6.9 ? caret(t) : 0; }
+    $("pinTxt").textContent = inTxt; $("caret").style.opacity = car;
+    const sendK = (t0) => t >= t0 ? .25 * Math.exp(-(t - t0) * 10) : 0;
+    $("psend").style.transform = `scale(${(1 + sendK(9.1) + sendK(20.6)).toFixed(3)})`;
+    let html = "";
+    if (t >= 9.1 && t < CLICK) {
+      const bIn = eOut(seg(t, 9.1, 9.4));
+      html += `<div class="ub kr" style="top:${150 + (1 - bIn) * 60}px;opacity:${bIn}">${T_ASK.text}</div>`;
+      if (t >= 9.5) {
+        const thinking = t < T_FORMAL.t0;
+        html += `<div class="rb kr" style="top:330px">${thinking ? dots(t) : typed(T_FORMAL, t)}</div>`;
+      }
+    }
+    if (t >= 20.15) {
+      const bIn = eOut(seg(t, 20.15, 20.45));
+      html += `<div class="ub kr" style="top:${150 + (1 - bIn) * 60}px;opacity:${bIn}">${T_ASK.text}<br><span class="att k">+ مثال من أسلوبي</span></div>`;
+      if (t >= 21.0) html += `<div class="rb kr" style="top:395px;border:3px solid ${t >= OK ? `rgba(43,213,118,${(.4 + .6 * Math.exp(-(t - OK) * 2)).toFixed(2)})` : "transparent"}">${t < T_FR[0].t0 ? dots(t) : FRIENDLY.map((l, i) => t >= T_FR[i].t0 ? `<div>${typed(T_FR[i], t)}</div>` : "").join("")}</div>`;
+    }
+    if (msgs._h !== html) { msgs.innerHTML = html; msgs._h = html; }
+  }
+
+  // headings around the phone
+  if (t >= 6.5 && t < 12.6) {
+    const s = slam(t, 6.7);
+    show(H1, 'طلبت <span class="hl">رد للعميل</span>', { top: "290px", fontSize: "84px", color: W, transform: `translateY(${s.y}px)` }, s.a * (1 - seg(t, 12.4, 12.6)));
+  }
+  if (t >= 12.05 && t < CLICK + .1) {
+    const s = slam(t, 12.1);
+    show(CAP, 'رسمي… <span style="color:#FF6B74">ومش شبهك</span>', { top: "1350px", left: "250px", fontSize: "66px", color: W, transform: `scale(${s.s})` }, s.a * (1 - seg(t, CLICK - .1, CLICK + .1)));
+  }
+  // the big switch
+  if (t >= 12.6 && t < 14.0) {
+    const k = spring(t - 12.6, 15, .6), on = eOut(seg(t, CLICK, CLICK + .16)), out = seg(t, 13.75, 14.0);
+    big.setAttribute("opacity", clamp((t - 12.6) / .1) * (1 - out));
+    big.setAttribute("transform", `translate(540 330) scale(${lerp(.4, 1, k) * (1 + .12 * (t >= CLICK ? Math.exp(-(t - CLICK) * 9) : 0))})`);
+    bigTrack.setAttribute("fill", on > .5 ? "url(#trk)" : "#34343F");
+    bigKnob.setAttribute("cx", -64 + on * 128); bigKnob.setAttribute("fill", on > .5 ? W : "#8A8A96");
+    bigKnob.style.filter = on > .5 ? "drop-shadow(0 0 22px #FFD23F)" : "none";
+  } else big.setAttribute("opacity", 0);
+  if (t >= 13.75 && t < RES - .2) {
+    const a = 1 - seg(t, RES - .45, RES - .2);
+    const k = slam(t, 13.8);
+    show(ST, "التكّة", { top: "250px", fontSize: "50px", color: Y, transform: `translateY(${k.y}px)` }, k.a * a);
+    const k2 = slam(t, 14.0);
+    show(H1, 'اديله <span class="hl">مثال</span> من كلامك', { top: "330px", fontSize: "80px", color: W, transform: `scale(${k2.s})` }, k2.a * a);
+  }
+
+  // sticky note: slide in, typed, scanned, then flies into the phone
+  const note = $("note");
+  if (t >= 14.0 && t < 20.3) {
+    const k = spring(t - 14.0, 13, .62), f = ease(seg(t, 19.3, 20.1));
+    const tx = lerp((1 - k) * -1100, 30, f), ty = lerp(0, 600, f), sc = lerp(1, .12, f), rot = lerp(-3 + (1 - k) * -10, 24, f);
+    note.style.opacity = 1 - seg(t, 19.9, 20.15);
+    note.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) rotate(${rot.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
+    const ex = typed(T_EX, t);
+    if (note._h !== ex + (t < T_EX.t1)) { $("noteT").innerHTML = ex + (t >= T_EX.t0 && t < T_EX.t1 ? '<span style="color:#E62E3A">|</span>' : ""); note._h = ex + (t < T_EX.t1); }
+    const sk = seg(t, 17.5, 18.9);
+    $("scan").style.opacity = sk > 0 && sk < 1 ? 1 : 0; $("scan").style.top = (sk * 100).toFixed(1) + "%";
+  } else note.style.opacity = 0;
+  TAGS.forEach(([, t0], i) => {
+    if (t < t0 || t >= 20.3) return;
+    const k = spring(t - t0, 16, .55), f = ease(seg(t, 19.25, 19.9));
+    const x = [770, 450, 160][i], y = 960;
+    show(TG[i], null, { left: x + "px", top: y + "px", transform: `translate(${(f * (570 - x - 110)).toFixed(0)}px,${(f * 260).toFixed(0)}px) scale(${(lerp(.3, 1, k) * (1 - f * .8)).toFixed(3)})` }, clamp((t - t0) / .08) * (1 - seg(t, 19.7, 19.95)));
+  });
+  // particles trailing into the phone input
+  parts.forEach((p, i) => { const d = t - 19.35 - p.dl, e = partE[i]; if (d < 0 || d > .75) { e.setAttribute("opacity", 0); return; } const k = ease(d / .75), x = lerp(p.x, 560, k) + Math.sin(k * Math.PI) * p.wob, y = lerp(p.y, 1255, k); e.setAttribute("x", x); e.setAttribute("y", y); e.setAttribute("opacity", 1 - k * .6); });
+
+  // RESULT headings
+  if (t >= RES && t < RULE - .3) {
+    const a = 1 - seg(t, RULE - .55, RULE - .3);
+    if (t < 28.3) {
+      const s = slam(t, RES + .1);
+      show(H1, 'بقى <span class="hl">بيتكلم زيك</span>', { top: "300px", fontSize: "86px", color: W, transform: `scale(${s.s})` }, s.a * a * (1 - seg(t, 28.1, 28.3)));
+    } else {
+      const s = slam(t, 28.35);
+      show(H1, "من غير ما تشرحله الأسلوب", { top: "255px", fontSize: "60px", color: "#C9C9D4", transform: `translateY(${s.y}px)` }, s.a * a);
+      const s2 = slam(t, 28.9);
+      show(H3, 'المثال <span class="hl">بيشرح نفسه</span>', { top: "345px", fontSize: "74px", color: W, transform: `scale(${s2.s})` }, s2.a * a);
+    }
+  }
+  // RULE: مثال واحد = أسلوب كامل
+  if (t >= RULE && t < OUT) {
+    const a = 1 - seg(t, OUT - .25, OUT);
+    const s1 = slam(t, 31.2), s2 = slam(t, 31.8), s3 = slam(t, 32.4), s4 = slam(t, 33.3);
+    show(H2, "مثال واحد", { top: "400px", fontSize: "130px", color: W, transform: `scale(${s1.s})` }, s1.a * a);
+    show(EQ, '<div style="width:170px;height:30px;border-radius:15px;background:#FFD23F;margin:0 auto 34px"></div><div style="width:170px;height:30px;border-radius:15px;background:#FFD23F;margin:0 auto"></div>', { top: "690px", lineHeight: "0", transform: `scale(${s2.s}) rotate(${(1 - spring(t - 31.8, 12, .5)) * 90}deg)` }, s2.a * a);
+    show(H3, '<span class="hl">أسلوب كامل</span>', { top: "820px", fontSize: "130px", color: W, transform: `scale(${s3.s})`, textShadow: "0 10px 0 #E62E3A" }, s3.a * a);
+    show(CAP, "جرّبها في الإيميل، البوست، وردود العملاء", { top: "1070px", fontSize: "48px", color: "#C9C9D4", transform: `translateY(${s4.y}px)` }, s4.a * a);
+  }
+
+  // stamp ✗ / ✓
+  const stampT = t >= 12.0 && t < CLICK ? 12.0 : (t >= OK && t < 29 ? OK : null);
+  if (stampT) {
+    const ok = stampT > 20, k = spring(t - stampT, 18, .5), col = ok ? GOOD : R;
+    stamp.setAttribute("opacity", clamp((t - stampT) / .06) * (1 - seg(t, ok ? 28.7 : CLICK - .2, ok ? 29 : CLICK)));
+    stamp.setAttribute("transform", `translate(${ok ? 830 : 810} ${ok ? 1110 : 1070}) scale(${lerp(2.2, 1, k)}) rotate(-12)`);
+    stampC.setAttribute("stroke", col); stampP.setAttribute("stroke", col);
+    stampP.setAttribute("d", ok ? "M-34,2 L-8,28 L38,-26" : "M-30,-30 L30,30 M30,-30 L-30,30");
+  } else stamp.setAttribute("opacity", 0);
+  conf.forEach((c, i) => { const d = t - OK - .05, e = confE[i]; if (d < 0 || d > 2.4) { e.setAttribute("opacity", 0); return; } const x = 830 + Math.cos(c.ang) * c.sp * d, y = 1110 + Math.sin(c.ang) * c.sp * d + 520 * d * d; e.setAttribute("x", x); e.setAttribute("y", y); e.setAttribute("transform", `rotate(${(c.spin * d * 57).toFixed(1)} ${x} ${y})`); e.setAttribute("opacity", 1 - d / 2.4); });
+
+  // OUTRO
+  if (t >= OUT) {
+    const s = slam(t, 35.2);
+    show(LOGO, "تكة", { top: "560px", fontSize: "300px", color: W, transform: `scale(${s.s})`, textShadow: "0 12px 0 #E62E3A" }, s.a);
+    logoG.setAttribute("opacity", clamp((t - 35.8) / .2));
+    const on = eOut(seg(t, 36.4, 36.6));
+    logoG.querySelector("#lgKnob").setAttribute("cx", 430 + on * 220);
+    logoG.querySelector("#lgTrack").setAttribute("fill", on > .5 ? "url(#trk)" : "#34343F");
+    const kx = 560, ky = 610, lit = on;
+    logoSpark.setAttribute("opacity", s.a);
+    logoSpark.innerHTML = `<circle cx="${kx}" cy="${ky}" r="${120 * lit}" fill="url(#lg)"/>` +
+      [-150, -120, -90, -60, -30].map(a => { const r = a * Math.PI / 180; return `<line x1="${kx + Math.cos(r) * 70}" y1="${ky + Math.sin(r) * 70}" x2="${kx + Math.cos(r) * (70 + 34 * lit)}" y2="${ky + Math.sin(r) * (70 + 34 * lit)}" stroke="#FFD23F" stroke-width="12" stroke-linecap="round" opacity="${lit}"/>`; }).join("") +
+      `<g stroke="${lit > .5 ? "#FFD23F" : "#fff"}" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M${kx - 50},${ky - 22} Q${kx - 43},${ky + 20} ${kx - 19},${ky + 24} L${kx},${ky + 6} L${kx + 19},${ky + 24} Q${kx + 43},${ky + 20} ${kx + 50},${ky - 22}"/><path d="M${kx},${ky + 6} L${kx},${ky + 40}"/></g><circle cx="${kx}" cy="${ky - 20}" r="18" fill="${lit > .5 ? "#FFD23F" : "#fff"}"/>`;
+    const s2 = slam(t, 36.8);
+    show(LOGOT, "كل حاجة ليها تكّة", { top: "1250px", fontSize: "70px", color: Y, transform: `translateY(${s2.y}px)` }, s2.a);
+    const s3 = slam(t, 37.7);
+    show(LOGOF, 'تابع عشان <span class="hl">التكّة الجاية</span>', { top: "1360px", fontSize: "56px", color: W, transform: `translateY(${s3.y}px)` }, s3.a * (1 - seg(t, 39.1, 39.5)));
+  } else { logoG.setAttribute("opacity", 0); logoSpark.setAttribute("opacity", 0); }
+
+  gctx.clearRect(0, 0, 1080, 1920);
+  const tile = grain[Math.floor(t * 24) % 4];
+  for (let y = 0; y < 1920; y += 256) for (let x = 0; x < 1080; x += 256) gctx.drawImage(tile, x, y);
+}
+function dots(t) { return [0, 1, 2].map(i => `<span class="dot" style="transform:translateY(${(-Math.max(0, Math.sin(t * 9 - i * .9)) * 12).toFixed(1)}px)"></span>`).join(""); }
+window.seek = seek;
+
+// ---------- sound (no narration: music + effects carry the video) ----------
+window.buildAudio = async function (ctx) {
+  const sr = ctx.sampleRate, BEAT = 60 / 124;
+  const master = ctx.createGain(); master.gain.value = .8;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  master.connect(comp); comp.connect(ctx.destination);
+  const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(17), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
+  const env = (g, t0, a, peak, dec) => { g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(.0001, t0 + a + dec); };
+  const osc = (type, f, t0, dur, peak, a = .004, fEnd, dest = master) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, a, peak, dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + a + dur + .05); };
+  const noise = (t0, dur, peak, type, f0, f1, q = 1, a = .004, dest = master) => { const s = ctx.createBufferSource(), b = ctx.createBiquadFilter(), g = ctx.createGain(); s.buffer = nb; b.type = type; b.Q.value = q; b.frequency.setValueAtTime(f0, t0); if (f1) b.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, a, peak, dur); s.connect(b); b.connect(g); g.connect(dest); s.start(t0, (t0 * 7.3) % 1); s.stop(t0 + a + dur + .05); };
+  const kick = (t0, v = .8) => osc("sine", 140, t0, .32, v, .002, 40);
+  const snare = (t0, v = .2) => { noise(t0, .16, v, "bandpass", 1900, null, .9); osc("triangle", 190, t0, .09, v * .7, .002, 140); };
+  const hat = (t0, v = .04) => noise(t0, .03, v, "highpass", 9000);
+  const whoosh = (t0, d = .45, v = .22) => noise(t0 - d * .7, d, v, "bandpass", 300, 5200, 2, d * .6);
+  const impact = (t0, v = .8) => { osc("sine", 90, t0, .85, v, .003, 28); noise(t0, .45, .3, "lowpass", 3000, 200, .7); };
+  const riser = (t0, t1, v = .18) => noise(t0, t1 - t0, v, "bandpass", 200, 6500, 3, (t1 - t0) * .9);
+  const tick = (t0, v = .07) => { noise(t0, .02, v, "highpass", 3200); osc("square", 1700 + (t0 * 991 % 500), t0, .015, v * .4); };
+  const click = t0 => { noise(t0, .012, .5, "highpass", 2500); osc("square", 2600, t0, .01, .25); osc("sine", 180, t0 + .01, .09, .5, .002, 90); noise(t0 + .06, .01, .3, "highpass", 4000); };
+  const buzz = t0 => { osc("square", 110, t0, .32, .16, .005); osc("square", 116, t0, .32, .12, .005); };
+  const ding = t0 => { osc("sine", 1318.5, t0, 1.4, .22, .003); osc("sine", 1975.5, t0 + .09, 1.2, .16, .003); };
+  const pop = (t0, f = 900, v = .18) => osc("sine", f, t0, .08, v, .002, f * 1.8);
+  const bleep = (t0, f) => osc("square", f, t0, .07, .06, .002);
+  const servo = t0 => noise(t0, .12, .1, "bandpass", 700, 1500, 6);
+  const boing = t0 => { osc("sine", 220, t0, .35, .22, .002, 760); osc("triangle", 330, t0 + .05, .3, .08, .002, 990); };
+  const scanS = (t0, t1) => { osc("sine", 380, t0, t1 - t0, .07, .05, 1500); noise(t0, t1 - t0, .05, "bandpass", 1200, 4200, 8, .05); };
+
+  for (const t0 of TYPING) tick(t0);
+  ROBOT_STEPS.forEach((t0, i) => { servo(t0); bleep(t0 + .05, [880, 660, 990, 740, 1170, 620, 880][i % 7]); });
+  // groove: in at the twist, quiet while the example is written, drop at the result
+  for (let n = 0, t0 = 3.0; t0 < OUT; n++, t0 += BEAT) {
+    const quiet = t0 >= 14.0 && t0 < RES - .1;
+    kick(t0, quiet ? .35 : (n % 4 === 3 && t0 > RES ? .6 : .75));
+    if (!quiet && n % 2 === 1) snare(t0);
+    if (t0 >= 6.5 && !quiet) { hat(t0 + BEAT / 2); if (t0 >= RES) { hat(t0 + BEAT / 4, .025); hat(t0 + BEAT * .75, .025); } }
+    if (quiet) hat(t0 + BEAT / 2, .02);
+  }
+  // D minor: Dm – Bb – F – C
+  const roots = [73.42, 58.27, 87.31, 65.41], chords = [[293.7, 349.2, 440], [233.1, 293.7, 349.2], [349.2, 440, 523.3], [261.6, 329.6, 392]];
+  const pad = ctx.createBiquadFilter(); pad.type = "lowpass"; pad.frequency.value = 1500; const pg = ctx.createGain(); pg.gain.value = .5; pad.connect(pg); pg.connect(master);
+  for (let bar = 0, t0 = 3.0; t0 < 39.6; bar++, t0 += BEAT * 4) {
+    const r = roots[bar % 4];
+    osc("sine", r, t0, BEAT * 4 - .05, .26, .02);
+    if (t0 < OUT) for (let b = 0; b < 4; b++) osc("sawtooth", r * 2, t0 + b * BEAT, .3, .05, .01);
+    for (const f of chords[bar % 4]) osc("sawtooth", f, t0, BEAT * 4 - .02, .02, .25, null, pad);
+    if (t0 >= RES - .1 && t0 < OUT) chords[bar % 4].forEach((f, j) => { for (let q = 0; q < 2; q++) osc("triangle", f * 2, t0 + (j + q * 4) * BEAT / 2, .22, .05, .003); });
+  }
+  for (const w of WHIPS) whoosh(w);
+  for (const i of IMPACTS) impact(i);
+  impact(2.6, .3); riser(5.4, 6.5, .12); riser(12.5, CLICK, .1); riser(21.4, RES, .14); riser(29.8, RULE, .1);
+  pop(9.1, 700); buzz(12.0); click(CLICK); boing(CLICK + .05);
+  pop(14.0, 520, .14); scanS(17.5, 18.9); TAGS.forEach(([, t0], i) => pop(t0, 980 + i * 140));
+  whoosh(19.9, .7, .2); for (let i = 0; i < 8; i++) pop(19.45 + i * .08, 1400 + i * 90, .07);
+  pop(20.15, 760); pop(20.6, 820);
+  ding(OK); for (let i = 0; i < 6; i++) pop(OK + .05 + i * .07, 1200 + i * 160);
+  pop(31.2, 600); pop(31.8, 900); pop(32.4, 1200);
+  click(36.4); riser(38.1, 39.2, .1); click(39.2);
+};
+
+// ---------- preview controls ----------
+const isRender = location.search.includes("render");
+if (!isRender) {
+  const fit = () => { const s = Math.min(innerWidth / 1080, innerHeight / 1920); $("stage").style.transform = `scale(${s})`; };
+  addEventListener("resize", fit); fit();
+  let buf, ac, src, startAt = 0, offset = 0, playing = false;
+  async function play() { ac ??= new AudioContext(); if (!buf) { const off = new OfflineAudioContext(2, Math.ceil(48000 * VIDEO.duration), 48000); await buildAudio(off); buf = await off.startRendering(); } src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start(0, offset % VIDEO.duration); startAt = ac.currentTime; playing = true; }
+  function pause() { if (!playing) return; offset += ac.currentTime - startAt; src.stop(); playing = false; }
+  const now = () => playing ? (offset + ac.currentTime - startAt) % VIDEO.duration : offset;
+  $("ui").innerHTML = `<button id=pp>play/pause</button> <input id=sc type=range min=0 max=${VIDEO.duration} step=0.01 style="width:300px">`;
+  $("pp").onclick = () => playing ? pause() : play();
+  $("sc").oninput = e => { const was = playing; pause(); offset = +e.target.value; if (was) play(); };
+  (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
+} else seek(0);
+</script>
+</body>
+</html>
