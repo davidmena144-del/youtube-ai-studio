@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>الذكاء الاصطناعي بالأرقام</title>
+<style>
+/*@FONTS@*/
+html,body{margin:0;background:#0B0B10;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:#0B0B10;transform-origin:0 0}
+.layer{position:absolute;inset:0}
+.abs{position:absolute;white-space:nowrap}
+.c{left:0;right:0;text-align:center}
+.kufi{font-family:"Kufi",sans-serif}
+.kufi{padding:40px 0}
+.mono{font-family:"Mono",monospace;direction:ltr}
+#hud{position:absolute;inset:0;pointer-events:none;color:#fff;opacity:.5;font-size:24px}
+#hud .br{position:absolute;width:56px;height:56px;border-color:#fff;border-style:solid;opacity:.8}
+#grain,#vig{position:absolute;inset:0;pointer-events:none}
+#vig{background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(0,0,0,.42) 100%)}
+canvas{position:absolute;left:0;top:0}
+#ui{position:fixed;left:8px;bottom:8px;z-index:9;font:14px sans-serif;color:#fff;direction:ltr}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg" class="layer"></div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+  <svg id="art" class="layer" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+  <div id="txt" class="layer"></div>
+  <div id="vig"></div>
+  <canvas id="grain" width="1080" height="1920"></canvas>
+  <div id="hud">
+    <div class="br" style="left:48px;top:150px;border-width:3px 0 0 3px"></div>
+    <div class="br" style="right:48px;top:150px;border-width:3px 3px 0 0"></div>
+    <div class="br" style="left:48px;bottom:330px;border-width:0 0 3px 3px"></div>
+    <div class="br" style="right:48px;bottom:330px;border-width:0 3px 3px 0"></div>
+    <div id="hudScene" class="abs mono" style="right:120px;top:166px"></div>
+    <div id="hudCat" class="abs mono" style="left:120px;bottom:346px"></div>
+    <div id="hudTc" class="abs mono" style="right:120px;bottom:346px"></div>
+  </div>
+</div>
+<div id="ui"></div>
+<script>
+/* Beat sheet — 120 BPM (beat = 0.5 s), 33 s, 9:16. Same grammar as «جسمك/دماغك في 24 ساعة»: one idea, a big
+   counter per scene, scene-to-scene morphs. Facts web-checked (dated) — sources in the description.
+ 0.00  a text cursor blinks on black, types «_»; binary streams shoot out of it          | key clicks
+ 1.00  streams fill the frame (AI / NUMBERS)                                              | riser 1.0→2.0
+ 1.75  orange floods from the cursor                                                      | impact 2.0
+ 2.00  title slam «الذكاء الاصطناعي» / «بالأرقام» / «أرقام لا تُصدَّق»                  | kick+clap start
+ 4.25  dark disc → scene 3                                                                | whoosh 4.5
+ 4.50  ROCKET: growth curve + rocket, 0→100,000,000 «مستخدم في شهرين فقط» (2023)         | rocket roar
+ 8.75  cream bar wipes up                                                                 | whoosh 9.0
+ 9.00  PEOPLE: grid of people fills, 0→900,000,000 «شخص كل أسبوع» (فبراير 2026)          | ticks
+12.75  people collapse into one chat bubble                                               | whoosh 13.0
+13.00  MESSAGES (navy): bubbles stream upward, 0→2,500,000,000 «رسالة كل يوم» (2025)     | pops, impact 17.0
+17.00  CHIP (mint): chip zooms into a transistor grid, 0→80,000,000,000 «ترانزستور» (2022) | servo hum
+21.50  COMPUTE: squares ×4 each year, «×4–5 كل سنة» (Epoch AI 2024)                      | stacked hits
+25.50  POWER: server racks + bolt, 0→415 «تيراواط ساعة» (IEA 2024)                       | electric buzz
+29.50  END: «وكل هذا…» «في سنوات قليلة!» + follow + sources note                         | riser, ring-out
+*/
+const VIDEO = { w: 1080, h: 1920, duration: 33 };
+window.VIDEO = VIDEO;
+const BEAT = 0.5;
+const INK = "#0B0B10", ORANGE = "#FF6B1A", MINT = "#19E6A6", CREAM = "#EDEBE4", NAVY = "#0D1B3D", YEL = "#FFD23F", WHITE = "#FFFFFF", SKY = "#7FB8FF";
+
+function spring(t, w = 14, z = 0.82) { if (t <= 0) return 0; if (z >= 1) return 1 - Math.exp(-w * t) * (1 + w * t); const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); }
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOut = x => 1 - Math.pow(1 - clamp(x), 4);
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const rng = s => () => (s = (s + 0x6D2B79F5) | 0, s = Math.imul(s ^ (s >>> 15), 1 | s), s ^= s + Math.imul(s ^ (s >>> 7), 61 | s), ((s ^ (s >>> 14)) >>> 0) / 4294967296);
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const pulse = (t, period, w = 18) => { const k = ((t % period) + period) % period; return Math.exp(-w * k); };
+
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const bg = $("bg"), art = $("art"), txt = $("txt"), fx = $("fx").getContext("2d");
+function el(tag, cls, html, parent = txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; parent.appendChild(e); return e; }
+function svg(tag, attrs, parent = art) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; }
+
+const T = {};
+T.kick = el("div", "abs c kufi"); T.big = el("div", "abs c kufi"); T.sub = el("div", "abs c kufi");
+T.label = el("div", "abs c kufi"); T.num = el("div", "abs c kufi"); T.unit = el("div", "abs c kufi");
+T.extra = el("div", "abs c kufi"); T.note = el("div", "abs c kufi"); T.label2 = el("div", "abs mono");
+for (const k in T) Object.assign(T[k].style, { opacity: 0 });
+
+// ---------- S1: cursor + binary streams ----------
+const cursor = svg("rect", { x: 522, y: 900, width: 36, height: 120, rx: 4, fill: MINT, opacity: 0 });
+const streams = (() => { const r = rng(21), a = []; for (let i = 0; i < 26; i++) a.push({ ang: r() * Math.PI * 2, sp: 500 + r() * 700, dl: 1.0 + r() * .5, bits: Array.from({ length: 14 }, () => (r() > .5 ? "1" : "0")).join("") }); return a; })();
+const flood = svg("circle", { cx: 540, cy: 960, r: 0, fill: ORANGE });
+const disc = svg("circle", { cx: 540, cy: 960, r: 0, fill: INK });
+
+// ---------- S3: growth curve + rocket ----------
+const rocketG = svg("g", { opacity: 0 });
+const axisG = svg("path", { d: "M140,300 L140,960 L960,960", fill: "none", stroke: WHITE, "stroke-opacity": .35, "stroke-width": 6, "stroke-linecap": "round" }, rocketG);
+const curve = svg("path", { d: "", fill: "none", stroke: ORANGE, "stroke-width": 14, "stroke-linecap": "round", "stroke-linejoin": "round" }, rocketG);
+const curveGlow = svg("path", { d: "", fill: "none", stroke: ORANGE, "stroke-opacity": .25, "stroke-width": 40, "stroke-linecap": "round" }, rocketG);
+const rocket = svg("g", {}, rocketG);
+rocket.innerHTML = `<path d="M0,-46 C22,-30 26,0 22,30 L-22,30 C-26,0 -22,-30 0,-46 Z" fill="${WHITE}"/><circle cx="0" cy="-6" r="10" fill="${SKY}"/><path d="M-22,14 L-38,40 L-20,32 Z M22,14 L38,40 L20,32 Z" fill="${ORANGE}"/><path id="flame" d="M-14,32 Q0,90 14,32 Z" fill="${YEL}"/>`;
+const monthTicks = [0, 1, 2].map(i => { const g = svg("g", {}, rocketG); svg("line", { x1: 140 + i * 400, x2: 140 + i * 400, y1: 960, y2: 985, stroke: WHITE, "stroke-opacity": .5, "stroke-width": 5 }, g); const tx = svg("text", { x: 140 + i * 400, y: 1030, "text-anchor": "middle", "font-family": "Mono", "font-size": 30, fill: WHITE, "fill-opacity": .6 }, g); tx.textContent = ""; return g; });
+
+// ---------- S5: chat bubbles stream ----------
+const bubbles = (() => { const r = rng(33), a = []; for (let i = 0; i < 40; i++) a.push({ x: 120 + r() * 840, sp: 220 + r() * 380, ph: r() * 1900, w: 120 + r() * 200, side: r() > .5, c: [MINT, ORANGE, SKY, WHITE][i % 4] }); return a; })();
+const blackout = svg("rect", { x: 0, y: 0, width: 1080, height: 1920, fill: INK, opacity: 0 });
+
+// ---------- S6: chip ----------
+const chipG = svg("g", { opacity: 0 });
+const chipPins = [];
+for (let s = 0; s < 4; s++) for (let i = 0; i < 9; i++) { const o = -240 + i * 60; const [x, y, w, h] = s === 0 ? [o - 10, -330, 20, 70] : s === 1 ? [o - 10, 260, 20, 70] : s === 2 ? [-330, o - 10, 70, 20] : [260, o - 10, 70, 20]; chipPins.push(svg("rect", { x, y, width: w, height: h, rx: 6, fill: INK }, chipG)); }
+const chipBody = svg("rect", { x: -270, y: -270, width: 540, height: 540, rx: 40, fill: INK }, chipG);
+const chipCore = svg("rect", { x: -170, y: -170, width: 340, height: 340, rx: 20, fill: "#14141B", stroke: MINT, "stroke-width": 8 }, chipG);
+const chipGridG = svg("g", {}, chipG);
+const chipCells = []; for (let i = 0; i < 12; i++) for (let j = 0; j < 12; j++) chipCells.push(svg("rect", { x: -150 + i * 25.5, y: -150 + j * 25.5, width: 19, height: 19, rx: 3, fill: MINT, opacity: 0 }, chipGridG));
+
+// ---------- S7: compute squares ----------
+const compG = svg("g", { opacity: 0 });
+const comps = [0, 1, 2, 3].map(i => { const g = svg("g", {}, compG); const r = svg("rect", { fill: [SKY, MINT, YEL, ORANGE][i], rx: 8 }, g); const tx = svg("text", { "text-anchor": "middle", "font-family": "Mono", "font-size": 30, fill: WHITE }, g); return { g, r, tx }; });
+
+// ---------- S8: server racks + bolt ----------
+const rackG = svg("g", { opacity: 0 });
+const racks = [0, 1, 2].map(i => { const x = 190 + i * 250; svg("rect", { x, y: 380, width: 200, height: 600, rx: 16, fill: "#14141B", stroke: "#3A3A46", "stroke-width": 6 }, rackG); const leds = []; for (let j = 0; j < 9; j++) { svg("rect", { x: x + 20, y: 410 + j * 62, width: 160, height: 44, rx: 8, fill: "#22222C" }, rackG); leds.push(svg("circle", { cx: x + 150, cy: 432 + j * 62, r: 8, fill: MINT }, rackG)); leds.push(svg("circle", { cx: x + 124, cy: 432 + j * 62, r: 8, fill: ORANGE }, rackG)); } return leds; });
+const bolt = svg("path", { d: "M600,250 L470,560 L560,560 L500,840 L680,480 L590,480 L650,250 Z", fill: YEL, stroke: INK, "stroke-width": 12, "stroke-linejoin": "round", opacity: 0 });
+
+const rule = svg("line", { x1: 540, x2: 540, y1: 1060, y2: 1060, stroke: INK, "stroke-width": 4 });
+
+// ---------- grain ----------
+const grainTiles = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 14; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
+const gctx = $("grain").getContext("2d");
+
+// ---------- helpers ----------
+function show(node, text, style, a) { if (text != null && node._t !== text) { node.textContent = text; node._t = text; } Object.assign(node.style, style); node.style.opacity = a; }
+function slamIn(t, t0) { const k = spring(t - t0, 16, .62); return { s: lerp(1.35, 1, k), a: clamp((t - t0) / .12), y: (1 - k) * 40 }; }
+function maskRTL(node, t, t0, d) { const k = ease(seg(t, t0, t0 + d)); node.style.clipPath = `inset(0 0 0 ${(1 - k) * 100}%)`; }
+function countBlock(t, t0, t1, to, label, unit, color, labelColor, numSize = 176, labelSize = 62) {
+  const inA = clamp((t - t0) / .25), outA = 1 - clamp((t - (t1 - .35)) / .3), a = Math.min(inA, outA);
+  const k = easeOut(seg(t, t0 + .25, t0 + 2.6)), landed = t > t0 + 2.6;
+  const blur = landed ? 0 : (1 - k) * 6 * (k > 0 ? 1 : 0);
+  const pop = landed ? 1 + 0.08 * Math.exp(-10 * (t - t0 - 2.6)) * Math.cos(28 * (t - t0 - 2.6)) : 1;
+  const l = slamIn(t, t0 + .05);
+  show(T.label, label, { top: "1060px", fontSize: labelSize + "px", fontWeight: 700, color: labelColor, transform: `translateY(${l.y}px)` }, a);
+  show(T.num, fmt(lerp(0, to, k)), { top: "1130px", fontSize: numSize + "px", fontWeight: 700, color, letterSpacing: "2px", filter: blur > .3 ? `blur(${blur.toFixed(1)}px)` : "none", transform: `scale(${pop})`, direction: "ltr" }, a);
+  const u = slamIn(t, t0 + 2.6);
+  show(T.unit, unit, { top: "1380px", fontSize: "62px", fontWeight: 700, color: labelColor, transform: `translateY(${u.y}px) scale(${u.s})` }, Math.min(a, u.a));
+  return { a, k, u };
+}
+function hide(...n) { for (const x of n) x.style.opacity = 0; }
+const SCENES = [[0, "01", "BOOT"], [2, "02", "TITLE"], [4.5, "03", "LAUNCH"], [9, "04", "USERS"], [13, "05", "MESSAGES"], [17, "06", "CHIP"], [21.5, "07", "COMPUTE"], [25.5, "08", "POWER"], [29.5, "09", "END"]];
+const growth = u => [140 + u * 800, 960 - 640 * (Math.exp(u * 3.2) - 1) / (Math.exp(3.2) - 1)];
+
+// ---------- seek ----------
+function seek(t) {
+  t = clamp(t, 0, VIDEO.duration - 1e-6);
+  const sc = [...SCENES].reverse().find(s => t >= s[0]);
+  $("hudScene").textContent = `SCENE ${sc[1]} / 09`;
+  $("hudCat").textContent = `AI / NUMBERS — ${sc[2]}`;
+  const fr = Math.floor(t * 30) % 30, ss = Math.floor(t);
+  $("hudTc").innerHTML = `<span style="color:${MINT}">●</span> 00:00:${String(ss).padStart(2, "0")}:${String(fr).padStart(2, "0")}`;
+  $("hud").style.color = (t >= 2 && t < 4.5) || (t >= 9 && t < 13) || (t >= 17 && t < 21.5) || t >= 29.5 ? INK : WHITE;
+  hide(...Object.values(T));
+  for (const k in T) { T[k].style.filter = "none"; T[k].style.clipPath = "none"; T[k].style.transform = "none"; T[k].style.textShadow = "none"; }
+
+  let base = INK;
+  if (t >= 2 && t < 4.5) base = ORANGE;
+  if (t >= 9 && t < 13) base = CREAM;
+  if (t >= 13 && t < 17) base = NAVY;
+  if (t >= 17 && t < 21.5) base = MINT;
+  if (t >= 29.5) base = CREAM;
+  bg.style.background = base;
+  fx.clearRect(0, 0, 1080, 1920);
+
+  // ---- S1 cursor + binary streams (0–2)
+  if (t < 2) {
+    const on = t < 1.0 ? (Math.floor(t * 4) % 2 === 0 ? 1 : 0) : 1;
+    cursor.setAttribute("opacity", (spring(t - .1, 18, .6) > .1 ? on : 0) * (1 - seg(t, 1.7, 1.9)));
+    fx.font = "700 34px Mono"; fx.textAlign = "center";
+    streams.forEach(s => { const d = t - s.dl; if (d <= 0) return; for (let i = 0; i < s.bits.length; i++) { const r = d * s.sp - i * 36; if (r < 20) continue; fx.fillStyle = i === 0 ? WHITE : `rgba(25,230,166,${(1 - i / s.bits.length).toFixed(2)})`; fx.fillText(s.bits[i], 540 + Math.cos(s.ang) * r, 972 + Math.sin(s.ang) * r); } });
+    const fl = ease(seg(t, 1.72, 2.0));
+    flood.setAttribute("r", (1200 * fl).toFixed(1));
+    show(T.label2, "AI / NUMBERS", { top: "1050px", left: "60px", fontSize: "28px", color: WHITE }, clamp((t - 1.2) / .2) * (1 - fl));
+  } else { cursor.setAttribute("opacity", 0); flood.setAttribute("r", 0); }
+
+  // ---- S2 title (2–4.5)
+  if (t >= 2 && t < 4.75) {
+    const out = seg(t, 4.2, 4.5);
+    const k1 = slamIn(t, 2.05);
+    show(T.kick, "الذكاء الاصطناعي", { top: "600px", fontSize: "84px", fontWeight: 700, color: INK, transform: `translateY(${k1.y}px)` }, k1.a * (1 - out));
+    const b = slamIn(t, 2.5);
+    show(T.big, "بالأرقام", { top: "690px", fontSize: "230px", fontWeight: 700, color: WHITE, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a * (1 - out));
+    maskRTL(T.big, t, 2.5, .45);
+    const s = slamIn(t, 3.0);
+    show(T.sub, "أرقام لا تُصدَّق", { top: "1190px", fontSize: "80px", fontWeight: 700, color: INK, transform: `translateY(${s.y}px)` }, s.a * (1 - out));
+    maskRTL(T.sub, t, 3.0, .4);
+    disc.setAttribute("r", (1200 * ease(seg(t, 4.15, 4.5))).toFixed(1));
+  } else disc.setAttribute("r", 0);
+
+  // ---- S3 rocket growth (4.5–9)
+  if (t >= 4.5 && t < 9.05) {
+    const a = clamp((t - 4.5) / .3);
+    rocketG.setAttribute("opacity", a);
+    const u = easeOut(seg(t, 4.75, 7.1));
+    let d = ""; for (let i = 0; i <= 60; i++) { const [x, y] = growth(u * i / 60); d += (i ? " L" : "M") + x.toFixed(1) + "," + y.toFixed(1); }
+    curve.setAttribute("d", d); curveGlow.setAttribute("d", d);
+    const [rx, ry] = growth(u), [qx, qy] = growth(Math.min(1, u + .01));
+    const ang = Math.atan2(qy - ry, qx - rx) * 180 / Math.PI + 90, shake = Math.sin(t * 60) * 2;
+    rocket.setAttribute("transform", `translate(${(rx + shake).toFixed(1)} ${ry.toFixed(1)}) rotate(${ang.toFixed(1)}) scale(1.5)`);
+    rocket.querySelector("#flame").setAttribute("d", `M-14,32 Q0,${(70 + 30 * Math.abs(Math.sin(t * 30))).toFixed(0)} 14,32 Z`);
+    countBlock(t, 4.6, 9, 100000000, "وصل ChatGPT إلى", "مستخدم في شهرين فقط", WHITE, CREAM, 150);
+    show(T.note, "تيك توك: 9 أشهر • إنستجرام: سنتان ونصف — 2023", { top: "975px", fontSize: "34px", color: CREAM }, clamp((t - 7.4) / .3) * .75 * (1 - seg(t, 8.65, 9)));
+  } else rocketG.setAttribute("opacity", 0);
+  if (t >= 8.7 && t < 9.1) { const w = ease(seg(t, 8.7, 9.0)); fx.fillStyle = CREAM; fx.fillRect(0, 1920 - 1920 * w, 1080, 1920 * w); }
+
+  // ---- S4 people grid (9–13)
+  if (t >= 9 && t < 13.05) {
+    const fill = easeOut(seg(t, 9.25, 11.6)), merge = ease(seg(t, 12.45, 12.95));
+    const cols = 15, rows = 11, total = cols * rows;
+    for (let i = 0; i < total; i++) {
+      const c = i % cols, r = Math.floor(i / cols), x = 110 + c * 61, y = 330 + r * 62;
+      const order = ((i * 37) % total) / total; if (order > fill) continue;
+      const k = clamp((fill - order) * 8), X = lerp(x, 540, merge), Y = lerp(y, 640, merge), s = k * (1 - merge * .8);
+      fx.fillStyle = i % 9 === 0 ? ORANGE : INK; fx.globalAlpha = 1 - merge * .6;
+      fx.beginPath(); fx.arc(X, Y - 12 * s, 11 * s, 0, Math.PI * 2); fx.fill();
+      fx.beginPath(); fx.ellipse(X, Y + 14 * s, 17 * s, 13 * s, 0, Math.PI, 0); fx.fill();
+    }
+    fx.globalAlpha = 1;
+    if (merge > 0) { const s = 1 + merge; fx.fillStyle = NAVY; fx.beginPath(); fx.roundRect(540 - 70 * s, 600 - 45 * s, 140 * s, 90 * s, 30 * s); fx.fill(); fx.beginPath(); fx.moveTo(540 - 40 * s, 640 + 40 * s); fx.lineTo(540 - 60 * s, 640 + 75 * s); fx.lineTo(540 - 10 * s, 640 + 40 * s); fx.fill(); }
+    countBlock(t, 9.1, 13, 900000000, "يستخدمه أسبوعيًا أكثر من", "شخص", INK, INK, 150);
+    show(T.note, "حسب OpenAI — فبراير 2026", { top: "975px", fontSize: "34px", color: INK }, clamp((t - 11.8) / .3) * .7 * (1 - seg(t, 12.7, 13)));
+  }
+
+  // ---- S5 messages (13–17)
+  if (t >= 13 && t < 17.05) {
+    const a = clamp((t - 13) / .25);
+    fx.globalAlpha = a * .9;
+    bubbles.forEach((b, i) => {
+      const y = 1960 - (((t - 13) * b.sp + b.ph) % 2100), h = 64;
+      if (y > 880 && y < 1500) return; // keep the counter area clear
+      fx.fillStyle = b.c; fx.beginPath(); fx.roundRect(b.x - b.w / 2, y, b.w, h, 30); fx.fill();
+      fx.beginPath(); const tx = b.side ? b.x + b.w / 2 - 30 : b.x - b.w / 2 + 30; fx.moveTo(tx - 12, y + h - 4); fx.lineTo(tx + (b.side ? 18 : -18), y + h + 20); fx.lineTo(tx + 12, y + h - 4); fx.fill();
+      fx.fillStyle = "rgba(11,11,16,.45)"; fx.fillRect(b.x - b.w / 2 + 26, y + 26, b.w - 70, 12);
+    });
+    fx.globalAlpha = 1;
+    countBlock(t, 13.1, 16.9, 2500000000, "ويستقبل كل يوم حوالي", "رسالة", WHITE, WHITE, 132);
+    show(T.note, "حسب OpenAI — يوليو 2025", { top: "975px", fontSize: "34px", color: WHITE }, clamp((t - 15.8) / .3) * .7 * (1 - seg(t, 16.6, 16.9)));
+    blackout.setAttribute("opacity", ease(seg(t, 16.75, 17.0)));
+  } else blackout.setAttribute("opacity", t >= 17 && t < 17.25 ? 1 - seg(t, 17, 17.25) : 0);
+
+  // ---- S6 chip (17–21.5)
+  if (t >= 17 && t < 21.6) {
+    const a = clamp((t - 17.05) / .25) * (1 - seg(t, 21.1, 21.45));
+    const zoom = ease(seg(t, 19.6, 21.3));
+    chipG.setAttribute("opacity", a);
+    chipG.setAttribute("transform", `translate(540 590) scale(${(spring(t - 17.05, 12, .65) * lerp(.85, 1.12, zoom)).toFixed(3)}) rotate(${lerp(-6, 0, spring(t - 17.05, 10, .7)).toFixed(2)})`);
+    const lit = easeOut(seg(t, 17.4, 19.4));
+    chipCells.forEach((c, i) => { const o = ((i * 53) % 144) / 144; c.setAttribute("opacity", o < lit ? (.45 + .55 * pulse(t - o * 2, BEAT, 7)).toFixed(2) : 0); });
+    const k = countBlock(t, 17.1, 21.5, 80000000000, "شريحة تدريب واحدة تحوي", "ترانزستور", INK, INK, 112);
+    show(T.note, "شريحة Nvidia H100 — 2022", { top: "975px", fontSize: "34px", color: INK }, clamp((t - 19.8) / .3) * .7 * k.a);
+  } else chipG.setAttribute("opacity", 0);
+
+  // ---- S7 compute ×4–5 per year (21.5–25.5)
+  if (t >= 21.4 && t < 25.6) {
+    const a = clamp((t - 21.45) / .25) * (1 - seg(t, 25.15, 25.45));
+    compG.setAttribute("opacity", a);
+    const base = 22, years = ["2021", "2022", "2023", "2024"];
+    comps.forEach((c, i) => {
+      const k = spring(t - 21.7 - i * .55, 13, .55), side = base * Math.pow(2, i) * 2.6 * k;   // area ×4 per step
+      const y = 980;
+      c.r.setAttribute("x", 540 - side / 2); c.r.setAttribute("y", y - side); c.r.setAttribute("width", Math.max(0, side)); c.r.setAttribute("height", Math.max(0, side)); c.r.setAttribute("opacity", k > 0 ? .9 - i * .12 : 0);
+      c.tx.setAttribute("x", 540 + side / 2 + 0); c.tx.setAttribute("y", y - side - 12); c.tx.textContent = years[i]; c.tx.setAttribute("opacity", 0);
+    });
+    const l = slamIn(t, 21.6);
+    show(T.label, "حوسبة تدريب أقوى النماذج تتضاعف", { top: "1060px", fontSize: "52px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
+    const n = Math.min(4, 1 + Math.floor(seg(t, 21.7, 23.4) * 4));
+    const landed = t >= 23.6, p = slamIn(t, 23.6);
+    show(T.num, landed ? "×4–5" : "×" + n, { top: "1130px", fontSize: "176px", fontWeight: 700, color: YEL, direction: "ltr", transform: landed ? `scale(${p.s})` : "none" }, a);
+    const u = slamIn(t, 24.0);
+    show(T.unit, "مرات كل سنة", { top: "1380px", fontSize: "62px", fontWeight: 700, color: CREAM, transform: `scale(${u.s})` }, u.a * a);
+    show(T.note, "حسب Epoch AI — 2024", { top: "975px", fontSize: "34px", color: CREAM }, u.a * a * .7);
+  } else compG.setAttribute("opacity", 0);
+
+  // ---- S8 power (25.5–29.5)
+  if (t >= 25.5 && t < 29.6) {
+    const a = clamp((t - 25.5) / .3) * (1 - seg(t, 29.2, 29.5));
+    rackG.setAttribute("opacity", a); rackG.setAttribute("transform", `translate(540 680) scale(${(.95 * spring(t - 25.55, 11, .7)).toFixed(3)}) translate(-540 -680)`);
+    racks.forEach((leds, i) => leds.forEach((l, j) => l.setAttribute("opacity", Math.sin(t * (6 + j % 5) + i * 2 + j) > -.2 ? 1 : .15)));
+    const bk = spring(t - 26.0, 16, .5);
+    bolt.setAttribute("opacity", t > 26 ? a * (Math.sin(t * 50) > -.6 ? 1 : .5) : 0);
+    bolt.setAttribute("transform", `translate(540 545) scale(${lerp(.2, 1, bk).toFixed(3)}) translate(-575 -545)`);
+    const k = countBlock(t, 25.6, 29.6, 415, "استهلكت مراكز البيانات حوالي", "تيراواط ساعة في 2024", WHITE, CREAM, 176, 58);
+    show(T.note, "≈ 1.5% من كهرباء العالم — حسب IEA", { top: "975px", fontSize: "34px", color: YEL }, clamp((t - 28.3) / .3) * k.a);
+  } else { rackG.setAttribute("opacity", 0); bolt.setAttribute("opacity", 0); }
+
+  // ---- S9 end (29.5–33)
+  if (t >= 29.5) {
+    const k = slamIn(t, 29.6);
+    show(T.kick, "وكل هذا…", { top: "560px", fontSize: "80px", fontWeight: 700, color: INK, transform: `translateY(${k.y}px)` }, k.a);
+    const b = slamIn(t, 30.1);
+    show(T.big, "في سنوات قليلة!", { top: "690px", fontSize: "116px", fontWeight: 700, color: ORANGE, transform: `scale(${b.s})`, lineHeight: "1.5" }, b.a);
+    maskRTL(T.big, t, 30.1, .45);
+    const r = ease(seg(t, 30.8, 31.3));
+    rule.setAttribute("x1", 540 - 300 * r); rule.setAttribute("x2", 540 + 300 * r); rule.setAttribute("opacity", 1);
+    const full = "تابع لمزيد من الأرقام المذهلة";
+    const n = Math.floor(full.length * seg(t, 31.0, 32.0));
+    show(T.sub, full.slice(0, Math.max(0, n)) + (t < 32.2 && Math.floor(t * 4) % 2 ? "|" : ""), { top: "1100px", fontSize: "60px", fontWeight: 700, color: INK }, t > 31 ? 1 : 0);
+    show(T.note, "المصادر في الوصف", { top: "1210px", fontSize: "34px", color: INK }, clamp((t - 32) / .3) * .7);
+  } else rule.setAttribute("opacity", 0);
+
+  gctx.clearRect(0, 0, 1080, 1920);
+  const tile = grainTiles[Math.floor(t * 24) % 4];
+  for (let y = 0; y < 1920; y += 256) for (let x = 0; x < 1080; x += 256) gctx.drawImage(tile, x, y);
+}
+window.seek = seek;
+
+// ---------- sound ----------
+window.buildAudio = async function (ctx) {
+  const sr = ctx.sampleRate;
+  const master = ctx.createGain(); master.gain.value = 0.8;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  master.connect(comp); comp.connect(ctx.destination);
+  const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(19), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
+  const env = (g, t0, a, peak, dec) => { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dec); };
+  const osc = (type, f, t0, dur, peak, a = .005, fEnd, dest = master) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, a, peak, dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + a + dur + .05); };
+  const noise = (t0, dur, peak, type, f0, f1, q = 1, a = .005, dest = master) => { const s = ctx.createBufferSource(), bq = ctx.createBiquadFilter(), g = ctx.createGain(); s.buffer = nb; bq.type = type; bq.Q.value = q; bq.frequency.setValueAtTime(f0, t0); if (f1) bq.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, a, peak, dur); s.connect(bq); bq.connect(g); g.connect(dest); s.start(t0, (t0 * 7.3) % 1); s.stop(t0 + a + dur + .05); };
+  const kick = (t0, v = .9) => osc("sine", 150, t0, .32, v, .002, 42);
+  const clap = (t0, v = .25) => { noise(t0, .14, v, "bandpass", 1500, null, 1.2); noise(t0 + .012, .1, v * .6, "bandpass", 2200, null, 1.5); };
+  const hat = (t0, v = .05) => noise(t0, .04, v, "highpass", 8000);
+  const whoosh = (t0, d = .5, v = .25) => noise(t0 - d * .7, d, v, "bandpass", 300, 5000, 2, d * .6);
+  const impact = (t0, v = .9) => { osc("sine", 90, t0, .9, v, .003, 30); noise(t0, .5, .35, "lowpass", 3000, 200, .7); };
+  const riser = (t0, t1, v = .2) => noise(t0, t1 - t0, v, "bandpass", 200, 6000, 3, (t1 - t0) * .9);
+  const blip = (t0, f = 1320, v = .12) => osc("triangle", f, t0, .09, v);
+  const bell = (t0, f, v = .2) => { osc("sine", f, t0, 2.2, v, .004); osc("sine", f * 2.01, t0, 1.2, v * .3, .004); };
+  const key = (t0, v = .1) => { noise(t0, .02, v, "highpass", 3000); osc("square", 1500 + (t0 * 911 % 600), t0, .012, v * .35); };
+  const data = (t0, v = .05) => osc("square", 600 + (t0 * 3731 % 1800), t0, .03, v, .002);
+  const pop = (t0, f = 700, v = .1) => osc("sine", f, t0, .07, v, .002, f * 2);
+  const buzz = (t0, d, v = .05) => { osc("sawtooth", 100, t0, d, v, .05); osc("sawtooth", 150, t0, d, v * .5, .05); };
+
+  // boot: cursor blinks + key taps, data spray, riser
+  [.15, .4, .65, .9].forEach(x => key(x, .14));
+  for (let t0 = 1.0; t0 < 1.9; t0 += .04) data(t0);
+  riser(1.0, 2.0, .22); impact(2.0);
+  for (let t0 = 2.0; t0 < 29.5; t0 += BEAT) {
+    kick(t0, .72);
+    if (t0 >= 4.5 && Math.round((t0 - 2) / BEAT) % 2 === 1) clap(t0);
+    if (t0 >= 9) { hat(t0 + .25); if (t0 >= 17) { hat(t0 + .125, .03); hat(t0 + .375, .03); } }
+  }
+  // F#m – D – A – E
+  const roots = [92.5, 73.42, 110, 82.41], chords = [[369.99, 440, 554.37], [293.66, 369.99, 440], [277.18, 329.63, 440], [329.63, 415.3, 493.88]];
+  const padBus = ctx.createBiquadFilter(); padBus.type = "lowpass"; padBus.frequency.value = 1600; const padG = ctx.createGain(); padG.gain.value = .5; padBus.connect(padG); padG.connect(master);
+  for (let bar = 0, t0 = 2.0; t0 < 31.5; bar++, t0 += 2) {
+    const r = roots[bar % 4], ch = chords[bar % 4];
+    for (let b = 0; b < 8; b++) osc("square", r * 2, t0 + b * BEAT / 2, .14, .045, .004);
+    osc("sine", r, t0, 1.9, .3, .02);
+    for (const f of ch) osc("sawtooth", f, t0, 1.95, .025, .2, null, padBus);
+    if (t0 >= 13 && t0 < 29.5) [0, 1, 2, 1, 0, 2, 1, 2].forEach((n, s) => osc("triangle", ch[n] * 2, t0 + s * .25, .1, .04, .003));
+  }
+  for (const t0 of [4.5, 9.0, 13.0, 21.5, 25.5]) whoosh(t0);
+  impact(17.0, .7); impact(25.5, .6);
+  // rocket roar
+  noise(4.75, 2.4, .1, "lowpass", 300, 1400, 1, .3); riser(4.8, 7.1, .1);
+  for (const [t0, f] of [[7.2, 1320], [11.7, 1175], [15.7, 1320], [19.7, 1568], [23.6, 1320], [28.2, 1568]]) { blip(t0, f); blip(t0 + .08, f * 1.5, .08); }
+  for (let t0 = 9.25; t0 < 11.6; t0 += .09) data(t0, .03);
+  for (let i = 0; i < 18; i++) pop(13.2 + i * .2, 600 + (i % 6) * 120, .07);
+  osc("sine", 120, 17.3, 3.8, .05, .3); osc("sine", 240, 17.3, 3.8, .02, .3);
+  [21.7, 22.25, 22.8, 23.35].forEach((t0, i) => { kick(t0, .5 + i * .1); blip(t0, 440 * Math.pow(2, i / 2), .08); });
+  buzz(26.0, 3.2); for (let t0 = 26.0; t0 < 26.6; t0 += .07) noise(t0, .03, .12, "bandpass", 3500, null, 6);
+  riser(28.6, 29.5, .18); impact(29.5, .5); bell(30.1, 880, .14); bell(31.0, 659.3, .1); bell(32.0, 440, .08);
+};
+
+// ---------- preview controls ----------
+const isRender = location.search.includes("render");
+if (!isRender) {
+  const fit = () => { const s = Math.min(innerWidth / 1080, innerHeight / 1920); $("stage").style.transform = `scale(${s})`; };
+  addEventListener("resize", fit); fit();
+  let buf, ac, src, startAt = 0, offset = 0, playing = false;
+  async function play() { ac ??= new AudioContext(); if (!buf) { const off = new OfflineAudioContext(2, Math.ceil(48000 * VIDEO.duration), 48000); await buildAudio(off); buf = await off.startRendering(); } src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start(0, offset % VIDEO.duration); startAt = ac.currentTime; playing = true; }
+  function pause() { if (!playing) return; offset += ac.currentTime - startAt; src.stop(); playing = false; }
+  const now = () => playing ? (offset + ac.currentTime - startAt) % VIDEO.duration : offset;
+  const ui = $("ui"); ui.innerHTML = `<button id=pp>play/pause</button> <input id=sc type=range min=0 max=${VIDEO.duration} step=0.01 style="width:300px">`;
+  $("pp").onclick = () => playing ? pause() : play();
+  $("sc").oninput = e => { const was = playing; pause(); offset = +e.target.value; if (was) play(); };
+  (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
+} else seek(0);
+</script>
+</body>
+</html>
