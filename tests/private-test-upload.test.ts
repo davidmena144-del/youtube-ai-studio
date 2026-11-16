@@ -63,3 +63,19 @@ describe("owner-approved private test upload", () => {
     expect(r.notes.join(" ")).toMatch(/still processing/);
   });
 });
+
+describe("owner-requested deletion of a test video", () => {
+  it("deletes only this project's ys:test upload on this channel, and verifies it is gone", async () => {
+    const { deleteOwnTestVideo } = await import("@/server/youtube/delete-test-video");
+    const r = await privateTestUpload(yt(), { dir, seo, marker: "ys:test:short-yawn", sleep: noSleep, waitMs: 0 });
+    // a non-test video on the same channel must be refused
+    const other = fake.state.videos[0];
+    fake.state.videos.push({ id: "otherVid123", bytes: 1, resource: { snippet: { title: "x", description: "my own video" }, status: {} } });
+    await expect(deleteOwnTestVideo(yt(), "otherVid123")).rejects.toThrow(/not a ys:test upload/);
+    await expect(deleteOwnTestVideo(yt(), "bad id")).rejects.toThrow(/invalid/);
+    const d = await deleteOwnTestVideo(yt(), r.videoId);
+    expect(d).toMatchObject({ videoId: r.videoId, deleted: true });
+    expect(fake.state.videos.map((v) => v.id)).toEqual(["otherVid123"]);
+    expect(other.id).toBe(r.videoId);
+  });
+});
