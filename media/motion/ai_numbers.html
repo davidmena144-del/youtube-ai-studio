@@ -381,5 +381,87 @@ if (!isRender) {
   (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
 } else seek(0);
 </script>
+<script>window.HOOK = {"l1": "كل أسبوع يتحدّث", "big": "900 مليون", "l3": "إنسان… مع آلة!", "tease": "والأرقام القادمة أغرب…", "accent": "#FF6B1A", "glow": "rgba(255,107,26,.40)", "streak": "rgba(255,210,63,.8)"};</script>
+<script>
+/* HOOK (0–2 s): a pattern-interrupt cold open placed over the first scene. Text is already on screen at frame 0
+   (it is the first frame viewers and the feed see), the shock number slams at 0.35 s with a shake, flash and
+   shockwave, the punchline lands at 0.9 s, an open-loop tease at 1.3 s, then the panel bursts away at 1.75 s
+   into the page's own flood → title. Wraps window.seek / window.buildAudio; the rest of the page is untouched. */
+(function () {
+  const H = window.HOOK;
+  const root = document.createElement("div");
+  root.id = "hook";
+  root.style.cssText = "position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:0";
+  root.innerHTML = `<canvas id="hookFx" width="1080" height="1920" style="position:absolute;inset:0"></canvas>
+   <div id="hk1" style="position:absolute;left:60px;right:60px;top:560px;text-align:center;font-family:Kufi,sans-serif;font-weight:700;font-size:${H.s1 || 74}px;color:#fff;white-space:nowrap;line-height:1.5"></div>
+   <div id="hk2" style="position:absolute;left:30px;right:30px;top:680px;text-align:center;font-family:Kufi,sans-serif;font-weight:700;font-size:${H.s2 || 190}px;color:${H.accent};white-space:nowrap;line-height:1.5"></div>
+   <div id="hk3" style="position:absolute;left:60px;right:60px;top:${H.y3 || 990}px;text-align:center;font-family:Kufi,sans-serif;font-weight:700;font-size:${H.s3 || 76}px;color:#fff;white-space:nowrap;line-height:1.5"></div>
+   <div id="hk4" style="position:absolute;left:60px;right:60px;top:${(H.y3 || 990) + 170}px;text-align:center;font-family:Kufi,sans-serif;font-weight:700;font-size:50px;color:#FFD23F;white-space:nowrap;line-height:1.5"></div>`;
+  const stage = document.getElementById("stage");
+  stage.insertBefore(root, document.getElementById("vig"));
+  const $h = id => document.getElementById(id);
+  $h("hk1").textContent = H.l1; $h("hk2").textContent = H.big; $h("hk3").textContent = H.l3; $h("hk4").textContent = H.tease;
+  const fx = $h("hookFx").getContext("2d");
+  const cl = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const sp = (t, w = 17, z = .5) => { if (t <= 0) return 0; const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); };
+  const lp = (a, b, k) => a + (b - a) * k;
+  const streaks = (() => { let s = 99; const r = () => (s = (s * 16807) % 2147483647) / 2147483647; const a = []; for (let i = 0; i < 90; i++) a.push({ ang: r() * Math.PI * 2, d: r(), sp: .6 + r() * 1.4, w: 2 + r() * 5 }); return a; })();
+  const T1 = 0, T2 = .35, T3 = .9, T4 = 1.3, OUT = 1.75, END = 2.0;
+  function hookSeek(t) {
+    if (t >= END) { root.style.opacity = 0; return; }
+    const out = cl((t - OUT) / (END - OUT)), oe = out * out;
+    root.style.opacity = 1 - oe;
+    root.style.transform = `scale(${1 + oe * .9})`;
+    root.style.background = H.bg || "#0B0B10";
+    // background: accent glow + radial speed streaks (faster after the slam)
+    fx.clearRect(0, 0, 1080, 1920);
+    const g = fx.createRadialGradient(540, 820, 30, 540, 820, 1000); g.addColorStop(0, H.glow); g.addColorStop(1, "rgba(11,11,16,0)");
+    fx.fillStyle = g; fx.fillRect(0, 0, 1080, 1920);
+    const speed = t < T2 ? .35 : 1 + 2.5 * Math.exp(-(t - T2) * 3);
+    fx.strokeStyle = H.streak; fx.lineCap = "round";
+    for (const s of streaks) {
+      const r0 = ((s.d + t * s.sp * speed * .9) % 1) * 1300 + 60, len = 60 + 260 * speed * s.d;
+      fx.globalAlpha = .55 * cl(r0 / 300); fx.lineWidth = s.w;
+      fx.beginPath(); fx.moveTo(540 + Math.cos(s.ang) * r0, 820 + Math.sin(s.ang) * r0); fx.lineTo(540 + Math.cos(s.ang) * (r0 + len), 820 + Math.sin(s.ang) * (r0 + len)); fx.stroke();
+    }
+    fx.globalAlpha = 1;
+    // shockwave + flash at the slam
+    const d2 = t - T2;
+    if (d2 >= 0 && d2 < .6) { fx.strokeStyle = H.accent; fx.lineWidth = 26 * (1 - d2 / .6); fx.globalAlpha = 1 - d2 / .6; fx.beginPath(); fx.arc(540, 800, 80 + d2 * 1400, 0, Math.PI * 2); fx.stroke(); fx.globalAlpha = 1; }
+    if (d2 >= 0 && d2 < .18) { fx.fillStyle = `rgba(255,255,255,${(.55 * (1 - d2 / .18)).toFixed(3)})`; fx.fillRect(0, 0, 1080, 1920); }
+    const shake = d2 >= 0 && d2 < .5 ? Math.exp(-d2 * 8) * 22 * Math.sin(d2 * 75) : 0;
+    // line 1: on screen at frame 0 (slight settle so it still moves)
+    const k1 = sp(t + .12, 14, .6);
+    $h("hk1").style.transform = `translate(${shake * .4}px,${(1 - k1) * 30}px) scale(${lp(1.12, 1, k1)})`; $h("hk1").style.opacity = 1;
+    // the shock word/number
+    const k2 = sp(d2), on2 = d2 >= 0;
+    $h("hk2").style.opacity = on2 ? cl(d2 / .05) : 0;
+    $h("hk2").style.transform = `translate(${shake}px,${shake * .5}px) scale(${lp(2.1, 1, k2)}) rotate(${(lp(-6, -2, k2)).toFixed(2)}deg)`;
+    $h("hk2").style.textShadow = d2 >= 0 && d2 < .3 ? `9px 0 #2EF2FF,-9px 0 #E62E3A, 0 14px 0 rgba(0,0,0,.5)` : `0 14px 0 rgba(0,0,0,.5)`;
+    // punchline + tease
+    const d3 = t - T3, k3 = sp(d3, 16, .6);
+    $h("hk3").style.opacity = d3 >= 0 ? cl(d3 / .08) : 0; $h("hk3").style.transform = `translateY(${(1 - k3) * 50}px)`;
+    const d4 = t - T4;
+    $h("hk4").style.opacity = d4 >= 0 ? cl(d4 / .08) * (Math.floor(t * 8) % 2 ? 1 : .55) : 0;
+  }
+  const s0 = window.seek;
+  window.seek = t => { s0(t); hookSeek(t); };
+  const a0 = window.buildAudio;
+  window.buildAudio = async ctx => {
+    if (a0) await a0(ctx);
+    const sr = ctx.sampleRate, m = ctx.createGain(); m.gain.value = .9; m.connect(ctx.destination);
+    const nb = ctx.createBuffer(1, sr, sr), d = nb.getChannelData(0); let s = 7; for (let i = 0; i < d.length; i++) d[i] = ((s = (s * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    const env = (g, t0, a, p, dec) => { g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(p, t0 + a); g.gain.exponentialRampToValueAtTime(.0001, t0 + a + dec); };
+    const osc = (type, f, t0, dur, p, fEnd) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, .003, p, dur); o.connect(g); g.connect(m); o.start(t0); o.stop(t0 + dur + .05); };
+    const nz = (t0, dur, p, type, f0, f1, q = 1) => { const src = ctx.createBufferSource(), b = ctx.createBiquadFilter(), g = ctx.createGain(); src.buffer = nb; b.type = type; b.Q.value = q; b.frequency.setValueAtTime(f0, t0); if (f1) b.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, .004, p, dur); src.connect(b); b.connect(g); g.connect(m); src.start(t0); src.stop(t0 + dur + .05); };
+    // frame-0 hit, the slam (sub drop + crack), punch tick, tease blip, burst-away whoosh
+    osc("sine", 120, 0, .45, .55, 38); nz(0, .2, .25, "highpass", 3000);
+    osc("sine", 70, T2, 1.1, .9, 24); nz(T2, .5, .45, "lowpass", 5000, 150, .7); osc("sawtooth", 880, T2, .18, .08, 110);
+    osc("sine", 160, T3, .25, .45, 50); nz(T3, .06, .2, "bandpass", 2500, null, 2);
+    osc("triangle", 1568, T4, .1, .1); osc("triangle", 2093, T4 + .08, .1, .07);
+    nz(OUT - .25, .5, .3, "bandpass", 400, 7000, 2);
+  };
+})();
+</script>
 </body>
 </html>
