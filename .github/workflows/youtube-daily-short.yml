@@ -6,13 +6,7 @@ name: YouTube daily Short
 
 on:
   schedule:
-    - cron: "23 17 * * *" # 19:23 Africa/Cairo (daily)
-    # Owner asked for all five new Shorts on Tue 17 Nov 2026: extra one-day slots (Cairo 12:31, 15:37, 18:07, 21:33).
-    # They only match 17 Nov; remove after that day.
-    - cron: "31 10 17 11 *"
-    - cron: "37 13 17 11 *"
-    - cron: "7 16 17 11 *"
-    - cron: "33 19 17 11 *"
+    - cron: "23 17 * * *" # 19:23 Africa/Cairo
   workflow_dispatch:
 
 concurrency:
