@@ -65,7 +65,8 @@ html,body{margin:0;background:#0E0E10;overflow:hidden}
    a framed card in the middle with mini-scenes that cut every 1–3 s, a numbered lower third, a progress line.
    No narration: the captions carry the words; music + UI sounds carry the pace. Pure seek(t). */
 // title: 3 حاجات Claude يعملها لمحلك
-const DATA = {
+/* global window */
+window.DATA = {
   duration: 33, bpm: 112,
   caps: [
     [0.0, "صاحب [محل]؟"], [0.8, "Claude يشتغل معاك"], [1.6, "و[ببلاش]"], [2.4, "في [3 حاجات]"],
@@ -91,6 +92,7 @@ const DATA = {
   sfx: [[9.0, "ding"], [16.4, "ding"], [25.6, "ding"]],
 };
 
+const DATA = window.DATA;
 const VIDEO = { w: 1080, h: 1920, duration: DATA.duration };
 window.VIDEO = VIDEO;
 const RED = "#E62E3A", Y = "#FFD23F", INK = "#0B0B10", W = "#FFFFFF";

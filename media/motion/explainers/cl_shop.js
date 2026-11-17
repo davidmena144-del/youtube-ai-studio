@@ -1,5 +1,6 @@
 // title: 3 حاجات Claude يعملها لمحلك
-const DATA = {
+/* global window */
+window.DATA = {
   duration: 33, bpm: 112,
   caps: [
     [0.0, "صاحب [محل]؟"], [0.8, "Claude يشتغل معاك"], [1.6, "و[ببلاش]"], [2.4, "في [3 حاجات]"],

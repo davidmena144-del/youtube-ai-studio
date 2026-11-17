@@ -1,5 +1,6 @@
 // title: 3 طرق تذاكر بيها بـ Claude
-const DATA = {
+/* global window */
+window.DATA = {
   duration: 33, bpm: 108,
   roots: [55, 43.65, 65.41, 49], chords: [[220, 261.6, 329.6], [174.6, 220, 261.6], [261.6, 329.6, 392], [196, 246.9, 293.7]],
   caps: [

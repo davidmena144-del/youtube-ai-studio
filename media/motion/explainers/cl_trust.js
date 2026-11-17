@@ -1,5 +1,6 @@
 // title: 3 حاجات متصدّقش فيها Claude على طول
-const DATA = {
+/* global window */
+window.DATA = {
   duration: 33, bpm: 104,
   roots: [49, 41.2, 55, 43.65], chords: [[196, 233.1, 293.7], [164.8, 196, 246.9], [220, 261.6, 329.6], [174.6, 220, 261.6]],
   caps: [

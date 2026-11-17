@@ -65,7 +65,8 @@ html,body{margin:0;background:#0E0E10;overflow:hidden}
    a framed card in the middle with mini-scenes that cut every 1–3 s, a numbered lower third, a progress line.
    No narration: the captions carry the words; music + UI sounds carry the pace. Pure seek(t). */
 // title: 3 طرق تذاكر بيها بـ Claude
-const DATA = {
+/* global window */
+window.DATA = {
   duration: 33, bpm: 108,
   roots: [55, 43.65, 65.41, 49], chords: [[220, 261.6, 329.6], [174.6, 220, 261.6], [261.6, 329.6, 392], [196, 246.9, 293.7]],
   caps: [
@@ -91,6 +92,7 @@ const DATA = {
   sfx: [[8.2, "ding"], [15.6, "ding"], [25.0, "ding"]],
 };
 
+const DATA = window.DATA;
 const VIDEO = { w: 1080, h: 1920, duration: DATA.duration };
 window.VIDEO = VIDEO;
 const RED = "#E62E3A", Y = "#FFD23F", INK = "#0B0B10", W = "#FFFFFF";
