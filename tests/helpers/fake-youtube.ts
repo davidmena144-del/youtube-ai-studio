@@ -90,7 +90,7 @@ export async function startFakeYouTube() {
     }
     if (url.pathname === "/youtube/v3/channels") return json(200, { items: [{ id: "UC1", snippet: { title: "قناة" }, contentDetails: { relatedPlaylists: { uploads: "UU1" } } }] });
     if (url.pathname === "/youtube/v3/playlistItems") {
-      return json(200, { items: state.videos.map((v) => ({ snippet: { description: v.resource.snippet.description, resourceId: { videoId: v.id } } })) });
+      return json(200, { items: state.videos.map((v) => ({ snippet: { description: String(v.resource.snippet.description).slice(0, 40), resourceId: { videoId: v.id } } })) }); // shortened on purpose: callers must read videos.list
     }
     if (url.pathname === "/youtube/v3/videos" && req.method === "DELETE") {
       const i = state.videos.findIndex((x) => x.id === url.searchParams.get("id"));
@@ -100,8 +100,8 @@ export async function startFakeYouTube() {
       return res.end();
     }
     if (url.pathname === "/youtube/v3/videos" && url.searchParams.get("part") === "snippet") {
-      const v = state.videos.find((x) => x.id === url.searchParams.get("id"));
-      return json(200, { items: v ? [{ id: v.id, snippet: { channelId: "UC1", title: v.resource.snippet.title, description: v.resource.snippet.description } }] : [] });
+      const ids = String(url.searchParams.get("id")).split(",");
+      return json(200, { items: state.videos.filter((x) => ids.includes(x.id)).map((v) => ({ id: v.id, snippet: { channelId: "UC1", title: v.resource.snippet.title, description: v.resource.snippet.description } })) });
     }
     if (url.pathname === "/youtube/v3/videos") {
       if (state.videosListFailOnce) {
