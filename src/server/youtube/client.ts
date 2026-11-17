@@ -108,11 +108,24 @@ export class YouTube {
   }
 
   /** Finds an already-uploaded video by the marker we put in every description (crash-safe dedupe). */
-  async findByMarker(uploadsPlaylist: string, marker: string): Promise<string | null> {
-    const j = await this.call<{ items: { snippet: { description: string; resourceId: { videoId: string } } }[] }>(
+  /**
+   * The channel's latest uploads (up to 50) with their FULL titles and descriptions.
+   * playlistItems can return a shortened description, so the full text is read with videos.list (1 unit per call).
+   */
+  async recentUploads(uploadsPlaylist: string): Promise<{ id: string; title: string; description: string }[]> {
+    const pl = await this.call<{ items?: { snippet: { resourceId: { videoId: string } } }[] }>(
       `${this.api}/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${encodeURIComponent(uploadsPlaylist)}`,
     );
-    return j.items?.find((i) => i.snippet.description?.includes(marker))?.snippet.resourceId.videoId ?? null;
+    const ids = (pl.items ?? []).map((i) => i.snippet.resourceId.videoId);
+    if (!ids.length) return [];
+    const v = await this.call<{ items?: { id: string; snippet: { title: string; description: string } }[] }>(
+      `${this.api}/youtube/v3/videos?part=snippet&maxResults=50&id=${ids.map(encodeURIComponent).join(",")}`,
+    );
+    return (v.items ?? []).map((x) => ({ id: x.id, title: x.snippet.title ?? "", description: x.snippet.description ?? "" }));
+  }
+
+  async findByMarker(uploadsPlaylist: string, marker: string): Promise<string | null> {
+    return (await this.recentUploads(uploadsPlaylist)).find((u) => u.description.includes(marker))?.id ?? null;
   }
 
   // ------------------------------------------------------------------ upload (resumable)

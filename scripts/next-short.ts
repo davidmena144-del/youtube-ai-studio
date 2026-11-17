@@ -12,13 +12,17 @@ async function main() {
   const { pages } = JSON.parse(readFileSync("media/motion/queue.json", "utf8")) as { pages: string[] };
   const yt = await youtubeFromStore(ytConfigFromEnv());
   const channel = await yt.myChannel();
+  // one snapshot of the latest uploads (full descriptions); a page counts as published if its marker OR its exact title is there
+  const uploads = await yt.recentUploads(channel.uploads);
   let next = "";
   for (const p of pages) {
     if (!/^[a-z0-9_]{3,40}$/.test(p) || !existsSync(`media/motion/${p}.html`) || !existsSync(`media/motion/${p}.seo.json`)) {
       console.log(`skip ${p}: missing page or SEO`);
       continue;
     }
-    if (await yt.findByMarker(channel.uploads, `ys:test:${p.replace(/_/g, "-")}`)) continue;
+    const marker = `ys:test:${p.replace(/_/g, "-")}`;
+    const title = (JSON.parse(readFileSync(`media/motion/${p}.seo.json`, "utf8")) as { title: string }).title.slice(0, 100);
+    if (uploads.some((u) => u.description.includes(marker) || u.title === title)) continue;
     next = p;
     break;
   }
