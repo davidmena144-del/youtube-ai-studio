@@ -1,6 +1,6 @@
 """Media QA for a rendered motion Short (no narration): writes manifest.json for the uploader.
     python3 qa.py <video.mp4> <out_dir> <title>
-Checks: 1080x1920 h264 + AAC, 15-60 s, integrated loudness -18..-13 LUFS, true peak <= -0.5 dBTP,
+Checks: vertical 9:16 at 1080x1920 or larger, h264 + AAC, 15-60 s, integrated loudness -18..-13 LUFS, true peak <= -0.5 dBTP,
 no black segment >= 1 s, no silence >= 2.5 s.
 """
 import json, re, shutil, subprocess, sys
@@ -18,7 +18,7 @@ peak = float(re.findall(r"Peak:\s+(-?[\d.]+) dBFS", log)[-1])
 issues = []
 if not v or not a: issues.append("missing video or audio stream")
 else:
-    if (v["width"], v["height"]) != (1080, 1920): issues.append(f"resolution {v['width']}x{v['height']}")
+    if v["width"] < 1080 or v["width"] * 16 != v["height"] * 9: issues.append(f"resolution {v['width']}x{v['height']}")
     if v["codec_name"] != "h264" or a["codec_name"] != "aac": issues.append(f"codecs {v['codec_name']}/{a['codec_name']}")
 if not 15 <= dur <= 60: issues.append(f"duration {dur:.1f}s outside 15-60s")
 if not -18 <= lufs <= -13: issues.append(f"loudness {lufs} LUFS")

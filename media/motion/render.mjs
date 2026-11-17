@@ -10,6 +10,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const [, , html, out, a3 = '60', a4 = '4', a5 = '4'] = process.argv;
+// OUTPUT_SCALE: upscale the encoded video (lanczos), e.g. 1.3333 → 1440x2560. YouTube serves its sharper (VP9)
+// streams for uploads above 1080p, so a 1440p upload looks better on phones even from a 1080p render.
+const SCALE = Number(process.env.OUTPUT_SCALE || 1);
 if (!html || !out) { console.log('usage: node render.mjs page.html out.mp4 [fps] [subframes] [workers]'); process.exit(1); }
 const run = (args) => new Promise((res, rej) => { const p = spawn('ffmpeg', args, { stdio: 'inherit' }); p.on('close', c => c ? rej(new Error('ffmpeg ' + c)) : res()); });
 const url = pathToFileURL(path.resolve(html)).href + '?render';
@@ -52,7 +55,9 @@ if (a3 === '--stills') {
 
 const fps = +a3, sub = Math.max(1, +a4), workers = Math.max(1, +a5), N = Math.round(V.duration * fps);
 const base = out.replace(/\.mp4$/, ''), silent = base + '_silent.mp4';
-const vf = sub > 1 ? ['-vf', `tmix=frames=${sub},select='eq(mod(n\\,${sub})\\,${sub - 1})',setpts=N/(${fps}*TB)`] : [];
+const OW = Math.round(V.w * SCALE / 2) * 2, OH = Math.round(V.h * SCALE / 2) * 2; // exact even output size
+const vfChain = [sub > 1 ? `tmix=frames=${sub},select='eq(mod(n\\,${sub})\\,${sub - 1})',setpts=N/(${fps}*TB)` : null, SCALE !== 1 ? `scale=${OW}:${OH}:flags=lanczos` : null].filter(Boolean);
+const vf = vfChain.length ? ['-vf', vfChain.join(',')] : [];
 const t0 = Date.now(); let doneFrames = 0;
 const per = Math.ceil(N / workers), segs = [];
 await Promise.all(Array.from({ length: workers }, async (_, w) => {
