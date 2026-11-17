@@ -55,7 +55,7 @@ jobs:
         run: |
           node build.mjs "$PAGE.html" "/tmp/$PAGE.built.html"
           cp render.mjs /tmp/render.mjs && ln -sfn "$GITHUB_WORKSPACE/node_modules" /tmp/node_modules
-          cd /tmp && node render.mjs "$PAGE.built.html" "$PAGE.mp4" 30 4 "$(nproc)"
+          cd /tmp && OUTPUT_SCALE=1.3333333333 node render.mjs "$PAGE.built.html" "$PAGE.mp4" 30 4 "$(nproc)" # 1440x2560 upload: YouTube serves sharper streams above 1080p
       - name: Media QA
         run: python3 media/motion/qa.py "/tmp/$PAGE.mp4" render "$(python3 -c "import json,sys;print(json.load(open('media/motion/$PAGE.seo.json'))['title'])")"
       - name: Upload and verify
