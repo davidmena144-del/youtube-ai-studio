@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>3 حاجات متصدّقش فيها Claude على طول</title>
+<style>
+/*@FONTS@*/
+html,body{margin:0;background:#0E0E10;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:#141416;transform-origin:0 0}
+.L{position:absolute;inset:0}
+.k{font-family:"Kufi",sans-serif;font-weight:700}
+.kr{font-family:"Kufi",sans-serif;font-weight:400}
+.m{font-family:"Mono",monospace;direction:ltr}
+#bg{position:absolute;inset:0}
+#cap{position:absolute;left:60px;right:60px;top:250px;height:300px;display:flex;align-items:center;justify-content:center;text-align:center}
+#capIn{font-family:"Kufi",sans-serif;font-weight:700;font-size:92px;line-height:1.45;color:#fff;white-space:normal}
+.kw{background:#E62E3A;color:#fff;padding:0 18px;border-radius:14px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+#cardWrap{position:absolute;left:70px;top:610px;width:940px;height:680px}
+#card{position:absolute;inset:0;border-radius:30px;overflow:hidden;background:#1E1E22;box-shadow:0 40px 90px rgba(0,0,0,.55)}
+.br{position:absolute;width:46px;height:46px;border-color:#fff;border-style:solid;opacity:.9}
+#lt{position:absolute;left:70px;right:70px;top:1325px;direction:rtl}
+#ltRow{display:flex;align-items:center;gap:22px}
+#ltNum{font-family:"Mono",monospace;font-weight:700;font-size:40px;color:#fff;background:#E62E3A;border-radius:12px;padding:4px 16px;direction:ltr}
+#ltTitle{font-family:"Kufi",sans-serif;font-weight:700;font-size:64px;color:#fff;white-space:nowrap}
+#ltSub{font-family:"Kufi",sans-serif;font-weight:400;font-size:38px;color:#B9B9C4;margin-top:6px;white-space:nowrap}
+#prog{position:absolute;left:70px;right:70px;top:1545px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+#progF{position:absolute;right:0;top:0;bottom:0;background:#E62E3A}
+#rec{position:absolute;left:52px;top:584px;width:16px;height:16px;border-radius:50%;background:#E62E3A}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+#grain{position:absolute;inset:0;pointer-events:none}
+/* card scene parts */
+.sc{position:absolute;inset:0}
+.input{position:absolute;left:50px;right:50px;border-radius:30px;background:#2A2A30;border:3px solid #3A3A44;display:flex;align-items:center;padding:0 30px 0 110px;font-family:"Kufi",sans-serif;font-size:40px;color:#fff;min-height:110px;direction:rtl}
+.send{position:absolute;width:76px;height:76px;border-radius:50%;background:#E62E3A;display:flex;align-items:center;justify-content:center}
+.phone{position:absolute;width:300px;height:560px;border-radius:44px;background:#0B0B10;border:8px solid #2E2E36;overflow:hidden}
+.post{position:absolute;left:14px;right:14px;border-radius:18px;background:#fff;overflow:hidden}
+.bub{position:absolute;max-width:600px;border-radius:30px;padding:16px 28px;font-family:"Kufi",sans-serif;font-size:38px;line-height:1.5;white-space:normal}
+.bin{right:40px;background:#2E2E36;color:#fff;border-radius:30px 30px 8px 30px}
+.bout{left:40px;background:#FFF2E8;color:#16161C;border-radius:30px 30px 30px 8px}
+.dot{display:inline-block;width:16px;height:16px;border-radius:50%;background:#8A8A96;margin:0 6px}
+.cell{position:absolute;border-radius:10px}
+#ui{position:fixed;left:8px;bottom:8px;z-index:9;font:14px sans-serif;color:#fff;direction:ltr}
+</style>
+</head>
+<body>
+<div id="stage">
+ <canvas id="bg" width="1080" height="1920"></canvas>
+ <div id="cap"><div id="capIn"></div></div>
+ <div id="cardWrap">
+  <div id="card"><div id="scene" class="L"></div></div>
+  <div class="br" style="right:-20px;top:-20px;border-width:5px 5px 0 0"></div>
+  <div class="br" style="left:-20px;top:-20px;border-width:5px 0 0 5px"></div>
+  <div class="br" style="right:-20px;bottom:-20px;border-width:0 5px 5px 0"></div>
+  <div class="br" style="left:-20px;bottom:-20px;border-width:0 0 5px 5px"></div>
+ </div>
+ <div id="rec"></div>
+ <div id="lt"><div id="ltRow"><span id="ltNum"></span><span id="ltTitle"></span></div><div id="ltSub"></div></div>
+ <div id="prog"><div id="progF"></div></div>
+ <div id="flash"></div>
+ <canvas id="grain" width="1080" height="1920"></canvas>
+</div>
+<div id="ui"></div>
+<script>
+/* Explainer-list engine (inspired by the reference's grammar, own look): top kinetic captions with a red keyword box,
+   a framed card in the middle with mini-scenes that cut every 1–3 s, a numbered lower third, a progress line.
+   No narration: the captions carry the words; music + UI sounds carry the pace. Pure seek(t). */
+// title: 3 حاجات متصدّقش فيها Claude على طول
+/* global window */
+window.DATA = {
+  duration: 33, bpm: 104,
+  roots: [49, 41.2, 55, 43.65], chords: [[196, 233.1, 293.7], [164.8, 196, 246.9], [220, 261.6, 329.6], [174.6, 220, 261.6]],
+  caps: [
+    [0.0, "Claude [ذكي]…"], [0.8, "بس مش معصوم"], [1.7, "في [3 حاجات]"], [2.4, "لازم تراجع وراه"],
+    [3.2, "الأخبار [الجديدة]"], [4.4, "معلوماته ليها تاريخ"], [5.8, "وممكن تكون [قديمة]"], [7.4, "اسأله: جبت ده منين؟"], [8.8, "وراجع [المصدر]"], [10.2, "بنفسك"],
+    [11.6, "الأرقام والمراجع"], [12.8, "ساعات [يألّف]"], [14.0, "رقم أو اسم كتاب"], [15.4, "بثقة كاملة"], [16.8, "[اتأكد] قبل ما تنقل"],
+    [19.0, "الصحة والفلوس"], [20.2, "يديك معلومة عامة"], [21.6, "بس مش [دكتور]"], [23.0, "ولا محاسب"], [24.4, "القرار المهم"], [25.6, "اسأل فيه [متخصص]"],
+    [27.4, "استخدمه [صح]"], [28.6, "واحفظ الفيديو"], [29.8, "وابعته لحد بيصدّق كل حاجة"], [31.2, "وتابع [تكّة]"],
+  ],
+  shots: [
+    [0.0, "big", { text: "ذكي… بس", size: 140, sub: "مش معصوم من الغلط" }],
+    [1.7, "big", { text: "[3] حاجات", size: 170, sub: "لازم تراجعها بنفسك" }],
+    [3.2, "warn", { text: "الأخبار [الجديدة]", sub: "معلوماته متدرّب عليها لحد تاريخ معيّن" }],
+    [7.2, "type", { text: "جبت المعلومة دي منين؟ ادّيني المصدر", cps: 22, label: "اسأله دايمًا:" }],
+    [10.2, "big", { text: "راجع [المصدر]", size: 120, sub: "بنفسك، مش بكلامه" }],
+    [11.6, "doc", { head: "إجابة فيها أرقام ومراجع", foldAt: 1.1, bullets: ["رقم دقيق جدًا؟", "اسم كتاب أو دراسة؟", "رابط مصدر؟", "← اتأكد منهم"], badge: "راجع" }],
+    [16.6, "big", { text: "[اتأكد] الأول", size: 130, sub: "قبل ما تنقل أو تنشر" }],
+    [19.0, "warn", { text: "صحتك و[فلوسك]", sub: "معلومة عامة، مش قرار" }],
+    [23.0, "big", { text: "اسأل [متخصص]", size: 120, sub: "دكتور، محامي، أو محاسب" }],
+    [27.4, "save", { text: "احفظ الفيديو" }],
+  ],
+  items: [[0, "", "", ""], [3.2, "01", "الأخبار الجديدة", "معلوماته ليها تاريخ"], [11.6, "02", "الأرقام والمراجع", "ممكن يألّفها بثقة"], [19.0, "03", "صحتك وفلوسك", "معلومة عامة مش قرار"], [27.4, "", "", ""]],
+  light: [[27.4, 99]],
+  sfx: [[3.3, "hit"], [19.1, "hit"]],
+};
+
+const DATA = window.DATA;
+const VIDEO = { w: 1080, h: 1920, duration: DATA.duration };
+window.VIDEO = VIDEO;
+const RED = "#E62E3A", Y = "#FFD23F", INK = "#0B0B10", W = "#FFFFFF";
+function spring(t, w = 16, z = .6) { if (t <= 0) return 0; const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); }
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = x => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const eOut = x => 1 - Math.pow(1 - clamp(x), 4);
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const rng = s => () => (s = (s + 0x6D2B79F5) | 0, s = Math.imul(s ^ (s >>> 15), 1 | s), s ^= s + Math.imul(s ^ (s >>> 7), 61 | s), ((s ^ (s >>> 14)) >>> 0) / 4294967296);
+const $ = id => document.getElementById(id);
+const typed = (s, t, t0, cps) => { const a = [...s]; return a.slice(0, Math.floor(clamp((t - t0) * cps, 0, a.length))).join(""); };
+const kw = s => s.replace(/\[([^\]]+)\]/g, '<span class="kw">$1</span>');
+const TYPE_TICKS = [];
+
+// ---------- mini-scenes (lt = local time in the shot, d = shot duration, o = options) ----------
+const SCENES = {
+  // big typography inside the card
+  big(lt, d, o) {
+    const k = spring(lt, 15, .55);
+    return `<div class="sc" style="background:${o.bg || "#1E1E22"}"></div>
+      <div class="sc k" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:34px;color:${o.fg || W}">
+       <div style="font-size:${o.size || 150}px;line-height:1.35;max-width:860px;text-align:center;white-space:normal;transform:scale(${lerp(1.5, 1, k).toFixed(3)});opacity:${clamp(lt / .08)}">${kw(o.text)}</div>
+       ${o.sub ? `<div class="kr" style="font-size:44px;opacity:${clamp((lt - .35) / .2)};color:${o.subc || "#B9B9C4"}">${o.sub}</div>` : ""}</div>`;
+  },
+  // a shop front: awning, sign lights up, number slams
+  store(lt, d, o) {
+    const lit = eOut(seg(lt, .25, .5)), n = spring(lt - (o.numAt || .9), 16, .5);
+    let aw = ""; for (let i = 0; i < 10; i++) aw += `<div style="position:absolute;top:120px;left:${150 + i * 64}px;width:64px;height:90px;background:${i % 2 ? "#fff" : RED};border-radius:0 0 32px 32px"></div>`;
+    return `<div class="sc" style="background:linear-gradient(#2A1E1A,#1A1214)"></div>
+      <div style="position:absolute;left:150px;right:150px;top:60px;height:70px;border-radius:14px;background:${lit > .5 ? Y : "#3A3A44"};box-shadow:0 0 ${(60 * lit).toFixed(0)}px rgba(255,210,63,.7);display:flex;align-items:center;justify-content:center" class="k"><span style="font-size:40px;color:${lit > .5 ? INK : "#777"}">${o.sign}</span></div>
+      ${aw}
+      <div style="position:absolute;left:190px;right:190px;top:230px;bottom:0;background:#3B2A24;border-radius:10px 10px 0 0"></div>
+      <div style="position:absolute;left:250px;width:250px;top:280px;height:230px;border-radius:12px;background:rgba(255,230,180,${(.15 + .55 * lit).toFixed(2)})"></div>
+      <div style="position:absolute;left:560px;width:130px;top:280px;bottom:0;border-radius:12px 12px 0 0;background:#24181A"></div>
+      ${o.num ? `<div class="k" style="position:absolute;right:60px;top:200px;font-size:260px;color:${W};text-shadow:0 14px 0 ${RED};opacity:${clamp((lt - (o.numAt || .9)) / .05)};transform:scale(${lerp(2.2, 1, n).toFixed(3)}) rotate(-6deg)">${o.num}</div>` : ""}`;
+  },
+  // prompt typed into an input, then sent
+  type(lt, d, o) {
+    const txt = typed(o.text, lt, .25, o.cps || 18), done = lt > .25 + [...o.text].length / (o.cps || 18), press = done ? Math.exp(-(lt - .25 - [...o.text].length / (o.cps || 18)) * 8) : 0;
+    return `<div class="sc" style="background:radial-gradient(circle at 50% 40%,#2A2A32,#18181C)"></div>
+      <div class="k" style="position:absolute;right:56px;top:70px;font-size:34px;color:#8A8A96">${o.label || "تكتب لـ Claude:"}</div>
+      <div class="input" style="top:180px;min-height:300px;align-items:flex-start;padding-top:28px;line-height:1.55;white-space:normal">${txt}${done ? "" : '<span style="color:#E62E3A">|</span>'}</div>
+      <div class="send" style="left:72px;top:${180 + 300 - 100}px;transform:scale(${(1 + .3 * press).toFixed(3)})"><svg width="36" height="36" viewBox="0 0 34 34"><path d="M17,28 L17,7 M8,15 L17,6 L26,15" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>`;
+  },
+  // a phone with posts sliding up
+  posts(lt, d, o) {
+    const cols = o.cols || ["#E62E3A", "#FFB020", "#2BD576"];
+    let p = ""; cols.forEach((c, i) => {
+      const k = spring(lt - .2 - i * .55, 13, .65); if (k <= 0) return;
+      const heart = lt - .2 - i * .55 - .5, hk = heart > 0 ? spring(heart, 18, .4) : 0;
+      p += `<div class="post" style="top:${30 + i * 168}px;height:150px;transform:translateY(${((1 - k) * 500).toFixed(0)}px)">
+        <div style="position:absolute;right:0;top:0;bottom:0;width:120px;background:${c}"><svg width="120" height="150" viewBox="0 0 120 150"><circle cx="60" cy="62" r="26" fill="rgba(255,255,255,.75)"/><rect x="28" y="98" width="64" height="12" rx="6" fill="rgba(255,255,255,.75)"/></svg></div>
+        <div style="position:absolute;left:14px;right:136px;top:26px;height:14px;border-radius:7px;background:#DDD"></div>
+        <div style="position:absolute;left:44px;right:136px;top:54px;height:14px;border-radius:7px;background:#E8E8E8"></div>
+        <div style="position:absolute;left:14px;top:96px;font-size:34px;color:${RED};transform:scale(${lerp(.2, 1, hk).toFixed(3)})">&#10084;</div>
+        <div class="m" style="position:absolute;left:58px;top:102px;font-size:24px;color:#555">${Math.round(lerp(0, [128, 342, 517][i % 3], eOut(seg(heart, 0, 1.2))))}</div></div>`; });
+    return `<div class="sc" style="background:radial-gradient(circle at 50% 60%,#3A2026,#17171B)"></div>
+      <div class="phone" style="left:320px;top:60px;transform:rotate(${(-4 + Math.sin(lt * 1.5) * 1.5).toFixed(2)}deg)"><div style="position:absolute;left:105px;top:8px;width:74px;height:20px;border-radius:10px;background:#000"></div>${p}</div>
+      ${o.tag ? `<div class="k" style="position:absolute;right:50px;top:${60}px;font-size:46px;color:${W};opacity:${clamp((lt - 1.4) / .15)}">${kw(o.tag)}</div>` : ""}`;
+  },
+  // a chat: incoming message, typing dots, reply typed, copy button
+  msg(lt, d, o) {
+    const inK = spring(lt - .15, 14, .6), replyT0 = 1.3;
+    const r = lt < replyT0 ? "" : typed(o.reply, lt, replyT0, o.cps || 30), rDone = lt > replyT0 + [...o.reply].length / (o.cps || 30);
+    const dots = lt > .7 && lt < replyT0 ? [0, 1, 2].map(i => `<span class="dot" style="transform:translateY(${(-Math.max(0, Math.sin(lt * 9 - i)) * 10).toFixed(1)}px)"></span>`).join("") : "";
+    const cp = rDone ? lt - replyT0 - [...o.reply].length / (o.cps || 30) : -1;
+    return `<div class="sc" style="background:#17171B"></div>
+      <div class="kr" style="position:absolute;left:0;right:0;top:0;height:86px;background:#202026;display:flex;align-items:center;padding:0 40px;font-size:32px;color:#B9B9C4">${o.head || "رسايل العملاء"}</div>
+      <div class="bub bin" style="top:${120 + (1 - inK) * 40}px;opacity:${clamp((lt - .15) / .1)}">${o.ask}</div>
+      ${dots ? `<div class="bub bout" style="top:250px">${dots}</div>` : ""}
+      ${r ? `<div class="bub bout" style="top:250px">${r}</div>` : ""}
+      ${cp >= 0 ? `<div class="k" style="position:absolute;left:40px;bottom:36px;border-radius:24px;padding:10px 30px;font-size:34px;background:${cp > .35 ? "#2BD576" : RED};color:#fff;transform:scale(${(1 + .25 * Math.exp(-Math.max(0, cp - .3) * 9) * (cp > .3 ? 1 : 0)).toFixed(3)})">${cp > .35 ? "اتنسخ ✓" : "نسخ"}</div>` : ""}`;
+  },
+  // a month grid filling day by day
+  cal(lt, d, o) {
+    const n = Math.floor(clamp((lt - .3) / (d - 1.0)) * 30), r = rng(5), cols = [RED, "#FFB020", "#2BD576", "#4C7DFF"];
+    let g = ""; for (let i = 0; i < 30; i++) { const c = i % 6, row = Math.floor(i / 6), on = i < n, pop = on ? spring(lt - .3 - i / 30 * (d - 1.0), 18, .5) : 0; const col = cols[Math.floor(r() * 4)];
+      g += `<div class="cell" style="right:${40 + c * 145}px;top:${120 + row * 108}px;width:130px;height:94px;background:${on ? col : "#24242A"};transform:scale(${on ? lerp(.4, 1, pop).toFixed(3) : 1})"><span class="m" style="position:absolute;right:10px;top:6px;font-size:22px;color:${on ? "#fff" : "#55555F"}">${i + 1}</span>${on ? '<div style="position:absolute;left:12px;right:12px;bottom:14px;height:10px;border-radius:5px;background:rgba(255,255,255,.7)"></div>' : ""}</div>`; }
+    return `<div class="sc" style="background:#17171B"></div>
+      <div class="k" style="position:absolute;right:44px;top:26px;font-size:40px;color:#fff">${o.title || "خطة الشهر"}</div>
+      <div class="m" style="position:absolute;left:44px;top:34px;font-size:30px;color:${Y}">${n}/30</div>${g}`;
+  },
+  // a long page collapses into short bullets (summarise / CV / letter)
+  doc(lt, d, o) {
+    const fold = ease(seg(lt, o.foldAt || 1.2, (o.foldAt || 1.2) + .6)), r = rng(8);
+    let lines = ""; for (let i = 0; i < 14; i++) { const w = 60 + r() * 38; lines += `<div style="height:16px;border-radius:8px;background:#D9D5CC;margin:0 0 ${lerp(14, 4, fold)}px;width:${w}%;opacity:${(1 - fold * .85).toFixed(2)}"></div>`; }
+    const bullets = (o.bullets || []).map((b, i) => { const k = spring(lt - (o.foldAt || 1.2) - .5 - i * .45, 15, .6); return k > 0 ? `<div class="k" style="display:flex;align-items:center;gap:16px;font-size:40px;color:#16161C;margin:14px 0;transform:translateX(${((1 - k) * -80).toFixed(0)}px);opacity:${clamp(k * 2)}"><span style="flex:none;width:22px;height:22px;border-radius:50%;background:${RED}"></span>${b}</div>` : ""; }).join("");
+    return `<div class="sc" style="background:radial-gradient(circle at 50% 30%,#2A2A32,#17171B)"></div>
+      <div style="position:absolute;left:170px;right:170px;top:${lerp(40, 70, fold)}px;bottom:${lerp(-40, 60, fold)}px;border-radius:20px;background:#F6F3EC;padding:40px 46px;box-sizing:border-box;overflow:hidden;transform:rotate(${lerp(-2, 0, fold).toFixed(2)}deg)">
+       <div class="k" style="font-size:34px;color:#8A8A96;margin-bottom:18px">${o.head || ""}</div>${fold < .98 ? lines : ""}${bullets}</div>
+      ${o.badge ? `<div class="k" style="position:absolute;left:40px;top:40px;background:${RED};color:#fff;border-radius:14px;padding:6px 20px;font-size:34px;opacity:${clamp((lt - (o.foldAt || 1.2)) / .2)}">${o.badge}</div>` : ""}`;
+  },
+  // a quiz card: options, one turns green
+  quiz(lt, d, o) {
+    const pick = o.pickAt || 2.2;
+    const opts = o.options.map((x, i) => { const k = spring(lt - .3 - i * .18, 15, .6); const ok = lt > pick && i === o.correct; const bad = lt > pick && i === o.wrong; return `<div class="k" style="position:absolute;right:60px;left:60px;top:${200 + i * 104}px;height:84px;border-radius:20px;display:flex;align-items:center;padding:0 30px;font-size:38px;background:${ok ? "#2BD576" : bad ? RED : "#2A2A30"};color:#fff;transform:translateX(${((1 - k) * 200).toFixed(0)}px) scale(${ok ? (1 + .06 * Math.exp(-(lt - pick) * 6)).toFixed(3) : 1});opacity:${clamp(k * 2)}"><span class="m" style="margin-left:20px;opacity:.6">${"ABCD"[i]}</span>${x}${ok ? " ✓" : ""}</div>`; }).join("");
+    return `<div class="sc" style="background:#17171B"></div>
+      <div class="k" style="position:absolute;right:60px;left:60px;top:50px;font-size:46px;color:#fff;line-height:1.45;white-space:normal">${o.q}</div>${opts}`;
+  },
+  // a warning sign shakes, with a crossed-out claim
+  warn(lt, d, o) {
+    const k = spring(lt - .1, 14, .4), sh = lt < .8 ? Math.sin(lt * 50) * 8 * Math.exp(-lt * 4) : 0;
+    return `<div class="sc" style="background:radial-gradient(circle at 50% 40%,#3A1A1E,#17171B)"></div>
+      <svg style="position:absolute;left:345px;top:70px;transform:translateX(${sh.toFixed(1)}px) scale(${lerp(.3, 1, k).toFixed(3)})" width="250" height="220" viewBox="0 0 250 220"><path d="M125,12 L238,206 L12,206 Z" fill="${Y}" stroke="${INK}" stroke-width="10" stroke-linejoin="round"/><rect x="113" y="70" width="24" height="80" rx="12" fill="${INK}"/><circle cx="125" cy="178" r="14" fill="${INK}"/></svg>
+      <div class="k" style="position:absolute;left:40px;right:40px;top:330px;text-align:center;font-size:56px;color:#fff;opacity:${clamp((lt - .5) / .15)}">${kw(o.text)}</div>
+      ${o.sub ? `<div class="kr" style="position:absolute;left:40px;right:40px;top:450px;text-align:center;font-size:38px;color:#B9B9C4;opacity:${clamp((lt - .9) / .2)}">${o.sub}</div>` : ""}`;
+  },
+  // bar chart building up (budget, comparison)
+  bars(lt, d, o) {
+    const vals = o.vals, labels = o.labels, max = Math.max(...vals), cols = [RED, "#FFB020", "#2BD576", "#4C7DFF", "#B07CFF"];
+    const b = vals.map((v, i) => { const k = eOut(seg(lt, .3 + i * .22, 1.1 + i * .22)), h = 360 * v / max * k; const x = 740 - i * (600 / (vals.length - 1 || 1));
+      return `<div style="position:absolute;left:${x - 50}px;bottom:120px;width:100px;height:${h.toFixed(0)}px;border-radius:14px 14px 0 0;background:${cols[i % 5]}"></div>
+        <div class="k" style="position:absolute;left:${x - 90}px;width:180px;bottom:60px;text-align:center;font-size:30px;color:#B9B9C4">${labels[i]}</div>
+        <div class="m" style="position:absolute;left:${x - 90}px;width:180px;bottom:${(130 + h).toFixed(0)}px;text-align:center;font-size:28px;color:#fff;opacity:${k > .9 ? 1 : 0}">${o.fmt ? o.fmt(v) : v}</div>`; }).join("");
+    return `<div class="sc" style="background:#17171B"></div>
+      <div class="k" style="position:absolute;right:44px;top:30px;font-size:40px;color:#fff">${o.title || ""}</div>${b}`;
+  },
+  // bookmark / save icon pulse (CTA)
+  save(lt, d, o) {
+    const k = spring(lt - .2, 14, .45), fill = lt > .9;
+    return `<div class="sc" style="background:${o.bg || "#F4F1EA"}"></div>
+      <svg style="position:absolute;left:370px;top:140px;transform:scale(${lerp(.3, 1, k).toFixed(3)})" width="200" height="260" viewBox="0 0 200 260"><path d="M20,20 L180,20 L180,240 L100,180 L20,240 Z" fill="${fill ? RED : "none"}" stroke="${fill ? RED : INK}" stroke-width="16" stroke-linejoin="round"/></svg>
+      <div class="k" style="position:absolute;left:0;right:0;bottom:60px;text-align:center;font-size:50px;color:${INK};opacity:${clamp((lt - 1.0) / .2)}">${o.text || "احفظ الفيديو"}</div>`;
+  },
+};
+
+// ---------- timeline helpers ----------
+const SHOTS = DATA.shots;          // [t0, scene, opts]
+const CAPS = DATA.caps;            // [t0, text with [keyword]]
+const ITEMS = DATA.items;          // [t0, num, title, sub]
+const LIGHT = DATA.light || [];    // [t0, t1] light mode ranges
+const at = (arr, t) => { let i = -1; for (let j = 0; j < arr.length; j++) if (arr[j][0] <= t) i = j; return i; };
+const isLight = t => LIGHT.some(([a, b]) => t >= a && t < b);
+
+// ---------- background ----------
+const bgx = $("bg").getContext("2d");
+function drawBg(t) {
+  const light = isLight(t);
+  bgx.fillStyle = light ? "#EDEBE6" : "#141416"; bgx.fillRect(0, 0, 1080, 1920);
+  const gx = 540 + Math.sin(t * .4) * 120;
+  const g = bgx.createRadialGradient(gx, 1650, 60, gx, 1650, 900); g.addColorStop(0, light ? "rgba(230,46,58,.12)" : "rgba(230,46,58,.28)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  bgx.fillStyle = g; bgx.fillRect(0, 0, 1080, 1920);
+  const g2 = bgx.createRadialGradient(540, 860, 100, 540, 860, 760); g2.addColorStop(0, light ? "rgba(255,255,255,.6)" : "rgba(255,255,255,.04)"); g2.addColorStop(1, "rgba(0,0,0,0)");
+  bgx.fillStyle = g2; bgx.fillRect(0, 0, 1080, 1920);
+}
+const grain = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 13; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
+const gctx = $("grain").getContext("2d");
+
+// ---------- seek ----------
+function seek(t) {
+  t = clamp(t, 0, VIDEO.duration - 1e-6);
+  drawBg(t);
+  const light = isLight(t);
+  // captions: one chunk at a time, pop in
+  const ci = at(CAPS, t), cap = $("capIn");
+  if (ci >= 0) {
+    const [c0, text] = CAPS[ci], k = spring(t - c0, 18, .55), next = ci + 1 < CAPS.length ? CAPS[ci + 1][0] : VIDEO.duration;
+    const h = kw(text); if (cap._h !== h) { cap.innerHTML = h; cap._h = h; }
+    const end = DATA.capsEnd && t > DATA.capsEnd ? 0 : 1;
+    cap.style.opacity = clamp((t - c0) / .05) * end * (1 - seg(t, next - .04, next));
+    cap.style.transform = `translateY(${((1 - k) * 34).toFixed(1)}px) scale(${lerp(1.12, 1, k).toFixed(3)})`;
+    cap.style.color = light ? "#111" : W;
+  } else cap.style.opacity = 0;
+  // shots: card content + cut transitions
+  const si = at(SHOTS, t), wrap = $("cardWrap");
+  if (si >= 0) {
+    const [s0, name, o] = SHOTS[si], s1 = si + 1 < SHOTS.length ? SHOTS[si + 1][0] : VIDEO.duration, lt = t - s0;
+    const html = name === "none" ? "" : SCENES[name](lt, s1 - s0, o || {});
+    const sc = $("scene"); if (sc._h !== html) { sc.innerHTML = html; sc._h = html; }
+    const inK = spring(lt, 15, .62), push = 1 + .035 * seg(lt, 0, s1 - s0);
+    const whip = lt < .12 ? (1 - lt / .12) * 160 : 0, whipOut = t > s1 - .1 ? (t - (s1 - .1)) / .1 * -160 : 0;
+    const vis = name === "none" ? 0 : 1;
+    wrap.style.opacity = vis;
+    wrap.style.transform = `translateX(${(whip + whipOut).toFixed(1)}px) scale(${(lerp(.92, 1, inK) * push).toFixed(4)})`;
+    $("card").style.filter = Math.abs(whip + whipOut) > 4 ? `blur(${(Math.abs(whip + whipOut) / 26).toFixed(1)}px)` : "none";
+    for (const b of wrap.querySelectorAll(".br")) b.style.borderColor = light ? "#111" : "#fff";
+  }
+  // lower third
+  const ii = at(ITEMS, t), lt3 = $("lt");
+  if (ii >= 0 && ITEMS[ii][1]) {
+    const [i0, num, title, sub] = ITEMS[ii], k = spring(t - i0, 14, .65), next = ii + 1 < ITEMS.length ? ITEMS[ii + 1][0] : VIDEO.duration;
+    $("ltNum").textContent = num; $("ltTitle").textContent = title; $("ltSub").textContent = sub;
+    lt3.style.opacity = clamp((t - i0) / .1) * (1 - seg(t, next - .1, next));
+    lt3.style.transform = `translateY(${((1 - k) * 40).toFixed(1)}px)`;
+    $("ltTitle").style.color = light ? "#111" : W; $("ltSub").style.color = light ? "#55555F" : "#B9B9C4";
+    $("ltSub").style.opacity = clamp((t - i0 - .25) / .2);
+  } else lt3.style.opacity = 0;
+  $("progF").style.width = (t / VIDEO.duration * 100).toFixed(2) + "%";
+  $("prog").style.background = light ? "rgba(0,0,0,.12)" : "rgba(255,255,255,.12)";
+  $("rec").style.opacity = Math.floor(t * 2) % 2 ? .35 : 1;
+  // flash on item starts
+  let fl = 0; for (const [i0] of ITEMS) { const d = t - i0; if (d >= 0 && d < .2) fl = Math.max(fl, .35 * (1 - d / .2)); }
+  $("flash").style.opacity = fl.toFixed(3);
+  gctx.clearRect(0, 0, 1080, 1920);
+  const tile = grain[Math.floor(t * 24) % 4];
+  for (let y = 0; y < 1920; y += 256) for (let x = 0; x < 1080; x += 256) gctx.drawImage(tile, x, y);
+}
+window.seek = seek;
+
+// ---------- sound: a light groove + UI sounds on the cuts (no narration) ----------
+window.buildAudio = async function (ctx) {
+  const sr = ctx.sampleRate, BEAT = 60 / (DATA.bpm || 112);
+  const master = ctx.createGain(); master.gain.value = .8;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  master.connect(comp); comp.connect(ctx.destination);
+  const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(19), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
+  const env = (g, t0, a, peak, dec) => { g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(.0001, t0 + a + dec); };
+  const osc = (type, f, t0, dur, peak, a = .004, fEnd, dest = master) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, a, peak, dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + a + dur + .05); };
+  const noise = (t0, dur, peak, type, f0, f1, q = 1, a = .004, dest = master) => { const s = ctx.createBufferSource(), b = ctx.createBiquadFilter(), g = ctx.createGain(); s.buffer = nb; b.type = type; b.Q.value = q; b.frequency.setValueAtTime(f0, t0); if (f1) b.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, a, peak, dur); s.connect(b); b.connect(g); g.connect(dest); s.start(t0, (t0 * 7.3) % 1); s.stop(t0 + a + dur + .05); };
+  const kick = (t0, v = .7) => osc("sine", 140, t0, .28, v, .002, 45);
+  const snap = (t0, v = .16) => { noise(t0, .09, v, "bandpass", 2400, null, 1.5); osc("triangle", 330, t0, .05, v * .5); };
+  const hat = (t0, v = .035) => noise(t0, .03, v, "highpass", 9000);
+  const swish = (t0, v = .14) => noise(Math.max(0, t0 - .12), .24, v, "bandpass", 600, 5500, 2, .1);
+  const tick = (t0, v = .05) => { noise(t0, .015, v, "highpass", 3500); osc("square", 1900 + (t0 * 911 % 400), t0, .012, v * .4); };
+  const pop = (t0, f = 880, v = .12) => osc("sine", f, t0, .07, v, .002, f * 1.7);
+  const ding = t0 => { osc("sine", 1318.5, t0, 1.0, .16, .003); osc("sine", 1975.5, t0 + .08, .9, .1, .003); };
+  const hit = t0 => { osc("sine", 80, t0, .7, .7, .003, 30); noise(t0, .35, .22, "lowpass", 3000, 200, .7); };
+  const D = DATA.duration;
+  // groove: soft kick/snap + pluck chords
+  const roots = DATA.roots || [65.41, 55, 43.65, 49], chords = DATA.chords || [[261.6, 329.6, 392], [220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7]];
+  const pad = ctx.createBiquadFilter(); pad.type = "lowpass"; pad.frequency.value = 1700; const pg = ctx.createGain(); pg.gain.value = .5; pad.connect(pg); pg.connect(master);
+  const quiet = DATA.quiet || [];
+  for (let n = 0, t0 = DATA.grooveFrom || 0; t0 < D - 1.5; n++, t0 += BEAT) {
+    const q = quiet.some(([a, b]) => t0 >= a && t0 < b);
+    kick(t0, q ? .35 : (n % 2 ? .45 : .7)); if (n % 2 === 1 && !q) snap(t0); hat(t0 + BEAT / 2, q ? .02 : .035);
+  }
+  for (let bar = 0, t0 = DATA.grooveFrom || 0; t0 < D - .5; bar++, t0 += BEAT * 4) {
+    const ch = chords[bar % 4]; osc("sine", roots[bar % 4], t0, BEAT * 4 - .05, .22, .02);
+    for (let s = 0; s < 8; s++) osc("triangle", ch[s % 3] * (s % 4 === 3 ? 2 : 1), t0 + s * BEAT / 2, .16, .045, .003);
+    for (const f of ch) osc("sawtooth", f, t0, BEAT * 4 - .02, .016, .25, null, pad);
+  }
+  for (const [t0] of SHOTS) swish(t0);
+  for (const [t0] of CAPS) pop(t0, 760 + (t0 * 137 % 300), .07);
+  for (const [t0, num] of ITEMS) if (num) hit(t0);
+  for (const t0 of TYPE_TICKS) tick(t0);
+  for (const [t0, kind] of DATA.sfx || []) ({ ding, hit, pop, swish })[kind](t0);
+  hit(0);
+};
+// typing ticks for "type"/"msg" shots
+for (const [s0, name, o] of SHOTS) { if (name === "type") for (let i = 0; i < [...o.text].length; i++) TYPE_TICKS.push(s0 + .25 + i / (o.cps || 18)); if (name === "msg") for (let i = 0; i < [...o.reply].length; i += 2) TYPE_TICKS.push(s0 + 1.3 + i / (o.cps || 30)); }
+
+// ---------- preview controls ----------
+const isRender = location.search.includes("render");
+if (!isRender) {
+  const fit = () => { const s = Math.min(innerWidth / 1080, innerHeight / 1920); $("stage").style.transform = `scale(${s})`; };
+  addEventListener("resize", fit); fit();
+  let buf, ac, src, startAt = 0, offset = 0, playing = false;
+  async function play() { ac ??= new AudioContext(); if (!buf) { const off = new OfflineAudioContext(2, Math.ceil(48000 * VIDEO.duration), 48000); await buildAudio(off); buf = await off.startRendering(); } src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start(0, offset % VIDEO.duration); startAt = ac.currentTime; playing = true; }
+  function pause() { if (!playing) return; offset += ac.currentTime - startAt; src.stop(); playing = false; }
+  const now = () => playing ? (offset + ac.currentTime - startAt) % VIDEO.duration : offset;
+  $("ui").innerHTML = `<button id=pp>play/pause</button> <input id=sc type=range min=0 max=${VIDEO.duration} step=0.01 style="width:300px">`;
+  $("pp").onclick = () => playing ? pause() : play();
+  $("sc").oninput = e => { const was = playing; pause(); offset = +e.target.value; if (was) play(); };
+  (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
+} else seek(0);
+</script>
+</body>
+</html>
