@@ -69,6 +69,7 @@ body.kufam #capIn,body.kufam #ltTitle,body.kufam .k{font-weight:800}
  <canvas id="grain" width="1080" height="1920"></canvas>
 </div>
 <div id="ui"></div>
+<script>/*@SFX@*/</script>
 <script>
 /* Explainer-list engine (inspired by the reference's grammar, own look): top kinetic captions with a red keyword box,
    a framed card in the middle with mini-scenes that cut every 1–3 s, a numbered lower third, a progress line.
@@ -76,7 +77,7 @@ body.kufam #capIn,body.kufam #ltTitle,body.kufam .k{font-weight:800}
 // title: 3 أوامر لـ Claude لازم تعرفها
 /* global window */
 window.DATA = {
-  font: "kufam", wordlit: true,
+  font: "kufam", wordlit: true, realSfx: true,
   duration: 34, bpm: 112,
   roots: [65.41, 55, 43.65, 49], chords: [[261.6, 329.6, 392], [220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7]],
   caps: [
@@ -352,6 +353,7 @@ window.buildAudio = async function (ctx) {
     for (let s = 0; s < 8; s++) osc("triangle", ch[s % 3] * (s % 4 === 3 ? 2 : 1), t0 + s * BEAT / 2, .16, .045, .003);
     for (const f of ch) osc("sawtooth", f, t0, BEAT * 4 - .02, .016, .25, null, pad);
   }
+  if (DATA.realSfx && window.SFX_FILES) { await sampleSfx(ctx, master); return; }
   for (const [t0] of SHOTS) swish(t0);
   for (const [t0] of CAPS) pop(t0, 760 + (t0 * 137 % 300), .07);
   for (const [t0, num] of ITEMS) if (num) hit(t0);
@@ -359,6 +361,36 @@ window.buildAudio = async function (ctx) {
   for (const [t0, kind] of DATA.sfx || []) ({ ding, hit, pop, swish })[kind](t0);
   hit(0);
 };
+// Sample-based SFX (media/motion/sfx: uisfx CC0 interface sounds + earshot MIT bank), placed on the exact event times.
+// Offsets put a whoosh's measured peak on the cut and a hit's onset on the frame. The music above stays synthesized.
+async function sampleSfx(ctx, out) {
+  const B = {};
+  for (const [k, uri] of Object.entries(window.SFX_FILES)) {
+    const bin = atob(uri.split(",")[1]), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    B[k] = await ctx.decodeAudioData(u8.buffer);
+  }
+  const r = rng(29), bus = ctx.createGain(); bus.gain.value = DATA.sfxBus || .45; bus.connect(out); out = bus; // keep effects under the music's peak
+  const play = (k, t, gain, rate = 1, peak = 0) => { const b = B[k]; if (!b) return; const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = gain; s.connect(g); g.connect(out); s.start(Math.max(0, t - peak / rate)); };
+  for (const [t0] of SHOTS) if (t0 > 0) play("es_swish", t0, .55, .95 + r() * .1, .131);
+  for (const [t0] of CAPS) play("ui_select", t0, .22, .92 + r() * .16);
+  for (const [t0, num] of ITEMS) if (num) play("es_hit", t0, .9, 1, .058);
+  for (const t0 of TYPE_TICKS) play("ui_typing", t0, .3, .88 + r() * .26);
+  for (const [s0, name, o] of SHOTS) {
+    if (name === "type") play("ui_send", s0 + .25 + [...o.text].length / (o.cps || 18), .5);
+    if (name === "msg") play("ui_copy", s0 + 1.3 + [...o.reply].length / (o.cps || 30) + .3, .45);
+    if (name === "quiz") { play("ui_check", s0 + (o.pickAt || 2.2), .55); if (o.wrong >= 0) play("ui_error", s0 + (o.pickAt || 2.2) + .05, .25); }
+    if (name === "save") play("ui_badge", s0 + .9, .5);
+  }
+  for (const [t0, kind] of DATA.sfx || []) {
+    if (kind === "ding") play("ui_success", t0, .5);
+    else if (kind === "hit") play("es_impact", t0, .8, 1, .117);
+    else if (kind === "pop") play("ui_select", t0, .3);
+    else if (kind === "swish") play("es_swish", t0, .5, 1, .131);
+  }
+  play("es_impact", 0, .85, 1, 0);
+}
+
 // typing ticks for "type"/"msg" shots
 for (const [s0, name, o] of SHOTS) { if (name === "type") for (let i = 0; i < [...o.text].length; i++) TYPE_TICKS.push(s0 + .25 + i / (o.cps || 18)); if (name === "msg") for (let i = 0; i < [...o.reply].length; i += 2) TYPE_TICKS.push(s0 + 1.3 + i / (o.cps || 30)); }
 
