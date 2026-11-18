@@ -13,6 +13,11 @@
     "cl_shop",
     "cl_trust",
     "cl_job",
-    "cl_daily"
+    "cl_daily",
+    "cl_prompts",
+    "en_trust",
+    "sleep",
+    "brain24h_en",
+    "cl_features"
   ]
 }
