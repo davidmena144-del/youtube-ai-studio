@@ -89,8 +89,11 @@ if (hasAudio) {
     const sr = 48000, ctx = new OfflineAudioContext(2, Math.ceil(sr * dur), sr);
     await window.buildAudio(ctx);
     const b = await ctx.startRendering(), L = b.getChannelData(0), R = b.getChannelData(b.numberOfChannels > 1 ? 1 : 0);
+    // never hard-clip: if the mix peaks above 0.97, scale the whole track down first (loudnorm sets the level after)
+    let pk = 0; for (let i = 0; i < L.length; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i]));
+    const sc = pk > .97 ? .97 / pk : 1;
     const i16 = new Int16Array(L.length * 2);
-    for (let i = 0; i < L.length; i++) { i16[2 * i] = Math.max(-1, Math.min(1, L[i])) * 32767; i16[2 * i + 1] = Math.max(-1, Math.min(1, R[i])) * 32767; }
+    for (let i = 0; i < L.length; i++) { i16[2 * i] = Math.max(-1, Math.min(1, L[i] * sc)) * 32767; i16[2 * i + 1] = Math.max(-1, Math.min(1, R[i] * sc)) * 32767; }
     const u8 = new Uint8Array(i16.buffer); let s = '';
     for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
     return btoa(s);

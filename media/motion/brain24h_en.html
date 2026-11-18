@@ -40,6 +40,7 @@ canvas{position:absolute;left:0;top:0}
   </div>
 </div>
 <div id="ui"></div>
+<script>/*@SFX@*/</script>
 <script>
 /* Beat sheet — 120 BPM (beat = 0.5 s), 33 s, 9:16. Same grammar as «جسمك في 24 ساعة»: one idea, a big number
    counting up per scene, every scene morphs into the next. Facts checked (WebSearch) — sources in the description.
@@ -342,6 +343,8 @@ window.buildAudio = async function (ctx) {
   const master = ctx.createGain(); master.gain.value = 0.8;
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
   master.connect(comp); comp.connect(ctx.destination);
+  const SB = window.loadSfx ? await window.loadSfx(ctx) : {}; // real samples when the page has them (build.mjs, the SFX placeholder)
+  const smp = (k, at, g, peak = 0) => { const s = ctx.createBufferSource(), gn = ctx.createGain(); s.buffer = SB[k]; gn.gain.value = g; s.connect(gn); gn.connect(master); s.start(Math.max(0, at - peak)); };
   const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(13), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
   const env = (g, t0, a, peak, dec) => { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dec); };
   const osc = (type, f, t0, dur, peak, a = .005, fEnd, dest = master) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, a, peak, dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + a + dur + .05); };
@@ -349,8 +352,8 @@ window.buildAudio = async function (ctx) {
   const kick = (t0, v = .9) => osc("sine", 150, t0, .32, v, .002, 42);
   const clap = (t0, v = .25) => { noise(t0, .14, v, "bandpass", 1500, null, 1.2); noise(t0 + .012, .1, v * .6, "bandpass", 2200, null, 1.5); };
   const hat = (t0, v = .05) => noise(t0, .04, v, "highpass", 8000);
-  const whoosh = (t0, d = .5, v = .25) => noise(t0 - d * .7, d, v, "bandpass", 300, 5000, 2, d * .6);
-  const impact = (t0, v = .9) => { osc("sine", 90, t0, .9, v, .003, 30); noise(t0, .5, .35, "lowpass", 3000, 200, .7); };
+  const whoosh = (t0, d = .5, v = .25) => SB.es_whoosh ? smp("es_whoosh", t0, v * 2, .354) : noise(t0 - d * .7, d, v, "bandpass", 300, 5000, 2, d * .6); // sample: peak on the cut
+  const impact = (t0, v = .9) => { if (SB.es_impact) return smp("es_impact", t0, v * .8, .117); osc("sine", 90, t0, .9, v, .003, 30); noise(t0, .5, .35, "lowpass", 3000, 200, .7); };
   const riser = (t0, t1, v = .2) => noise(t0, t1 - t0, v, "bandpass", 200, 6000, 3, (t1 - t0) * .9);
   const blip = (t0, f = 1320, v = .12) => osc("triangle", f, t0, .09, v);
   const bell = (t0, f, v = .2) => { osc("sine", f, t0, 2.2, v, .004); osc("sine", f * 2.01, t0, 1.2, v * .3, .004); };
@@ -403,22 +406,32 @@ if (!isRender) {
   (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
 } else seek(0);
 </script>
-<script>window.HOOK = {"l1": "You'll have about", "big": "6,000", "l3": "thoughts today…", "tease": "That's not the strangest number.", "accent": "#2EF2FF", "glow": "rgba(91,46,255,.45)", "streak": "rgba(46,242,255,.8)", "s2": 190, "font": "Kufam", "dir": "ltr"};</script>
+<script>window.HOOK = {"l1": "You'll have about", "big": "6,000", "l3": "thoughts today…", "tease": "That's not the strangest number.", "accent": "#2EF2FF", "glow": "rgba(91,46,255,.45)", "streak": "rgba(46,242,255,.8)", "s2": 190, "font": "Kufam", "dir": "ltr", "feel": "count"};</script>
 <script>
-/* HOOK (0–2 s): a pattern-interrupt cold open placed over the first scene. Text is already on screen at frame 0
-   (it is the first frame viewers and the feed see), the shock number slams at 0.35 s with a shake, flash and
-   shockwave, the punchline lands at 0.9 s, an open-loop tease at 1.3 s, then the panel bursts away at 1.75 s
-   into the page's own flood → title. Wraps window.seek / window.buildAudio; the rest of the page is untouched. */
+/* HOOK v2 (0–2 s): a cold open placed over the first scene. The first line is on screen at frame 0 (the frame the
+   feed shows), the hero word lands at 0.35 s, the punchline at 0.9 s, an open-loop tease at 1.3 s, then the panel
+   bursts away at 1.75 s into the page's own opening.
+   The hero word's motion acts its meaning (H.feel, after the kufam-kinetic-type rule "the motion is the feeling"):
+     slam   default: big overshoot + camera shake
+     brake  «استنى!»: everything is racing, the word lands and the whole frame freezes dead
+     reveal «مستخبية»: the word is there from frame 0 but blurred and dim; a light sweep uncovers it
+     glitch «بيهنّج»: the word arrives in stutters, with jitter and colour split
+     shake  danger: slam, then an angry decaying shake, red glow, cracks under the word
+     count  a number: counts up from 0 as it lands
+   Sound: real samples when the page has them (window.loadSfx: reverse whoosh sucked into the hit, impact on the
+   frame, whoosh peak on the burst), else a small synthesized fallback.
+   Wraps window.seek / window.buildAudio; the rest of the page is untouched. */
 (function () {
-  const H = window.HOOK;
+  const H = window.HOOK, FEEL = H.feel || "slam";
+  const FONT = H.font || "Kufi", DIR = H.dir || "rtl", CREAM = "#F0E8D4";
   const root = document.createElement("div");
   root.id = "hook";
   root.style.cssText = "position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:0";
-  root.innerHTML = `<canvas id="hookFx" width="1080" height="1920" style="position:absolute;inset:0"></canvas>
-   <div id="hk1" style="position:absolute;left:60px;right:60px;top:560px;text-align:center;font-family:${H.font || 'Kufi'},sans-serif;direction:${H.dir || 'rtl'};font-weight:700;font-size:${H.s1 || 74}px;color:#fff;white-space:nowrap;line-height:1.5"></div>
-   <div id="hk2" style="position:absolute;left:30px;right:30px;top:680px;text-align:center;font-family:${H.font || 'Kufi'},sans-serif;direction:${H.dir || 'rtl'};font-weight:700;font-size:${H.s2 || 190}px;color:${H.accent};white-space:nowrap;line-height:1.5"></div>
-   <div id="hk3" style="position:absolute;left:60px;right:60px;top:${H.y3 || 990}px;text-align:center;font-family:${H.font || 'Kufi'},sans-serif;direction:${H.dir || 'rtl'};font-weight:700;font-size:${H.s3 || 76}px;color:#fff;white-space:nowrap;line-height:1.5"></div>
-   <div id="hk4" style="position:absolute;left:60px;right:60px;top:${(H.y3 || 990) + 170}px;text-align:center;font-family:${H.font || 'Kufi'},sans-serif;direction:${H.dir || 'rtl'};font-weight:700;font-size:50px;color:#FFD23F;white-space:nowrap;line-height:1.5"></div>`;
+  const line = (id, top, size, color, weight, side) => `<div id="${id}" style="position:absolute;left:${side}px;right:${side}px;top:${top}px;text-align:center;font-family:${FONT},sans-serif;direction:${DIR};font-weight:${weight};font-size:${size}px;color:${color};white-space:nowrap;line-height:1.5"></div>`;
+  const Y3 = H.y3 || 990;
+  root.innerHTML = `<canvas id="hookFx" width="1080" height="1920" style="position:absolute;inset:0"></canvas>` +
+    line("hk1", 560, H.s1 || 74, CREAM, 700, 60) + line("hk2", 680, H.s2 || 190, H.accent, 900, 30) +
+    line("hk3", Y3, H.s3 || 76, CREAM, 700, 60) + line("hk4", Y3 + 170, 50, "#FFD23F", 700, 60);
   const stage = document.getElementById("stage");
   stage.insertBefore(root, document.getElementById("vig"));
   const $h = id => document.getElementById(id);
@@ -427,39 +440,77 @@ if (!isRender) {
   const cl = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
   const sp = (t, w = 17, z = .5) => { if (t <= 0) return 0; const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); };
   const lp = (a, b, k) => a + (b - a) * k;
-  const streaks = (() => { let s = 99; const r = () => (s = (s * 16807) % 2147483647) / 2147483647; const a = []; for (let i = 0; i < 90; i++) a.push({ ang: r() * Math.PI * 2, d: r(), sp: .6 + r() * 1.4, w: 2 + r() * 5 }); return a; })();
-  const T1 = 0, T2 = .35, T3 = .9, T4 = 1.3, OUT = 1.75, END = 2.0;
+  const eo = x => 1 - Math.pow(1 - cl(x), 3);
+  let seed = 99; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const streaks = []; for (let i = 0; i < 90; i++) streaks.push({ ang: rnd() * Math.PI * 2, d: rnd(), sp: .6 + rnd() * 1.4, w: 2 + rnd() * 5 });
+  const bokeh = []; for (let i = 0; i < 9; i++) bokeh.push({ x: 80 + rnd() * 920, y: 200 + rnd() * 1500, r: 70 + rnd() * 110, ph: rnd() * 6.28, sp: .4 + rnd() * .5, c: i % 3 });
+  const jit = []; for (let i = 0; i < 24; i++) jit.push([rnd() > .45 ? (rnd() - .5) * 46 : 0, rnd() > .6 ? (rnd() - .5) * 10 : 0, rnd() > .5]);
+  const cracks = []; for (let i = 0; i < 7; i++) { const a = Math.PI * (.08 + .84 * i / 6) + (rnd() - .5) * .2, pts = [[0, 0]]; let r = 0; for (let j = 0; j < 5; j++) { r += 50 + rnd() * 70; pts.push([Math.cos(a + (rnd() - .5) * .5) * r, Math.sin(a + (rnd() - .5) * .5) * r * .55]); } cracks.push(pts); }
+  const NUM = FEEL === "count" ? Number(String(H.big).replace(/[^0-9.]/g, "")) : 0;
+  const T2 = .35, T3 = .9, T4 = 1.3, OUT = 1.75, END = 2.0;
+  const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+
   function hookSeek(t) {
     if (t >= END) { root.style.opacity = 0; return; }
-    const out = cl((t - OUT) / (END - OUT)), oe = out * out;
+    const out = cl((t - OUT) / (END - OUT)), oe = out * out, d2 = t - T2;
     root.style.opacity = 1 - oe;
     root.style.transform = `scale(${1 + oe * .9})`;
     root.style.background = H.bg || "#0B0B10";
-    // background: accent glow + radial speed streaks (faster after the slam)
     fx.clearRect(0, 0, 1080, 1920);
+    // glow + soft bokeh
     const g = fx.createRadialGradient(540, 820, 30, 540, 820, 1000); g.addColorStop(0, H.glow); g.addColorStop(1, "rgba(11,11,16,0)");
     fx.fillStyle = g; fx.fillRect(0, 0, 1080, 1920);
-    const speed = t < T2 ? .35 : 1 + 2.5 * Math.exp(-(t - T2) * 3);
+    for (const b of bokeh) {
+      const x = b.x + Math.sin(t * b.sp + b.ph) * 30, y = b.y + Math.cos(t * b.sp * .8 + b.ph) * 22, col = [H.accent, "#FFBE50", "#5AAAA0"][b.c];
+      const bg = fx.createRadialGradient(x, y, 0, x, y, b.r); bg.addColorStop(0, rgba(col, .16)); bg.addColorStop(1, rgba(col, 0));
+      fx.fillStyle = bg; fx.fillRect(x - b.r, y - b.r, b.r * 2, b.r * 2);
+    }
+    // radial streaks: travel is the integral of speed, so "brake" can freeze them dead on the hit
+    let travel, speed;
+    if (FEEL === "brake") { travel = 2.4 * Math.min(t, T2); speed = t < T2 ? 2.4 : 0; }
+    else if (FEEL === "reveal") { travel = .25 * t; speed = .25; }
+    else { travel = t < T2 ? .35 * t : .35 * T2 + (t - T2) + (2.5 / 3) * (1 - Math.exp(-(t - T2) * 3)); speed = t < T2 ? .35 : 1 + 2.5 * Math.exp(-(t - T2) * 3); }
     fx.strokeStyle = H.streak; fx.lineCap = "round";
     for (const s of streaks) {
-      const r0 = ((s.d + t * s.sp * speed * .9) % 1) * 1300 + 60, len = 60 + 260 * speed * s.d;
-      fx.globalAlpha = .55 * cl(r0 / 300); fx.lineWidth = s.w;
+      const r0 = ((s.d + travel * s.sp * .9) % 1) * 1300 + 60, len = 60 + 260 * Math.max(speed, .15) * s.d;
+      fx.globalAlpha = (FEEL === "reveal" ? .3 : .55) * cl(r0 / 300); fx.lineWidth = s.w;
       fx.beginPath(); fx.moveTo(540 + Math.cos(s.ang) * r0, 820 + Math.sin(s.ang) * r0); fx.lineTo(540 + Math.cos(s.ang) * (r0 + len), 820 + Math.sin(s.ang) * (r0 + len)); fx.stroke();
     }
     fx.globalAlpha = 1;
-    // shockwave + flash at the slam
-    const d2 = t - T2;
-    if (d2 >= 0 && d2 < .6) { fx.strokeStyle = H.accent; fx.lineWidth = 26 * (1 - d2 / .6); fx.globalAlpha = 1 - d2 / .6; fx.beginPath(); fx.arc(540, 800, 80 + d2 * 1400, 0, Math.PI * 2); fx.stroke(); fx.globalAlpha = 1; }
-    if (d2 >= 0 && d2 < .18) { fx.fillStyle = `rgba(255,255,255,${(.55 * (1 - d2 / .18)).toFixed(3)})`; fx.fillRect(0, 0, 1080, 1920); }
-    const shake = d2 >= 0 && d2 < .5 ? Math.exp(-d2 * 8) * 22 * Math.sin(d2 * 75) : 0;
-    // line 1: on screen at frame 0 (slight settle so it still moves)
+    if (FEEL === "reveal") { // a cone of light sweeps across and uncovers the word
+      const k = eo((t - T2 + .12) / .5), cx = lp(1300, 540, k);
+      fx.save(); fx.globalAlpha = .22 * cl((t - T2 + .12) / .1); fx.fillStyle = CREAM; fx.beginPath(); fx.moveTo(cx - 60, -40); fx.lineTo(cx + 60, -40); fx.lineTo(cx + 420, 1000); fx.lineTo(cx - 420, 1000); fx.closePath(); fx.filter = "blur(24px)"; fx.fill(); fx.restore();
+    } else if (d2 >= 0 && d2 < .6) { // shockwave + flash on the hit
+      fx.strokeStyle = H.accent; fx.lineWidth = 26 * (1 - d2 / .6); fx.globalAlpha = 1 - d2 / .6; fx.beginPath(); fx.arc(540, 820, 80 + d2 * 1400, 0, Math.PI * 2); fx.stroke(); fx.globalAlpha = 1;
+      if (d2 < .18) { fx.fillStyle = `rgba(255,255,255,${(.5 * (1 - d2 / .18)).toFixed(3)})`; fx.fillRect(0, 0, 1080, 1920); }
+    }
+    if (FEEL === "brake" && d2 >= 0) { // two hard bars lock the word in place
+      const k = eo(d2 / .12); fx.fillStyle = "#E62E3A";
+      fx.fillRect(540 - 430 * k, 708, 860 * k, 12); fx.fillRect(540 - 430 * k, 948, 860 * k, 12);
+    }
+    if (FEEL === "shake" && d2 >= 0) { // cracks under the word
+      const k = eo(d2 / .25); fx.strokeStyle = rgba("#E62E3A", .85); fx.lineWidth = 6; fx.lineJoin = "round";
+      for (const c of cracks) { fx.beginPath(); c.forEach(([x, y], i) => { const px = 540 + x * k, py = 960 + y * k; if (i) fx.lineTo(px, py); else fx.moveTo(px, py); }); fx.stroke(); }
+    }
+    const hit = FEEL !== "reveal" && d2 >= 0 && d2 < .5 ? Math.exp(-d2 * (FEEL === "brake" ? 22 : 8)) * 22 * Math.sin(d2 * 75) : 0;
+    // line 1: readable on frame 0
     const k1 = sp(t + .12, 14, .6);
-    $h("hk1").style.transform = `translate(${shake * .4}px,${(1 - k1) * 30}px) scale(${lp(1.12, 1, k1)})`; $h("hk1").style.opacity = 1;
-    // the shock word/number
-    const k2 = sp(d2), on2 = d2 >= 0;
-    $h("hk2").style.opacity = on2 ? cl(d2 / .05) : 0;
-    $h("hk2").style.transform = `translate(${shake}px,${shake * .5}px) scale(${lp(2.1, 1, k2)}) rotate(${(lp(-6, -2, k2)).toFixed(2)}deg)`;
-    $h("hk2").style.textShadow = d2 >= 0 && d2 < .3 ? `9px 0 #2EF2FF,-9px 0 #E62E3A, 0 14px 0 rgba(0,0,0,.5)` : `0 14px 0 rgba(0,0,0,.5)`;
+    $h("hk1").style.transform = `translate(${hit * .4}px,${(1 - k1) * 30}px) scale(${lp(1.12, 1, k1)})`; $h("hk1").style.opacity = 1;
+    // the hero word
+    const w = $h("hk2"), st = w.style;
+    let tf, op = d2 >= 0 ? cl(d2 / .05) : 0, shadow = "0 14px 0 rgba(0,0,0,.5)", filter = "none";
+    if (FEEL === "brake") { const k = sp(d2, 30, .92); tf = `translate(${hit}px,0) scale(${lp(2.6, 1, k)})`; }
+    else if (FEEL === "reveal") { const k = eo((t - T2) / .35); op = lp(.22, 1, k); filter = k < 1 ? `blur(${((1 - k) * 22).toFixed(1)}px)` : "none"; tf = `scale(${lp(1.1, 1, k)})`; }
+    else if (FEEL === "glitch") {
+      const dq = Math.floor(Math.max(0, d2) / .11) * .11, k = sp(d2 < .66 ? dq : d2), q = Math.floor(Math.max(0, d2) / .08), j = d2 >= 0 && d2 < 1.15 ? jit[q % jit.length] : [0, 0, false];
+      tf = `translate(${j[0]}px,0) skewX(${j[1]}deg) scale(${lp(1.3, 1, k)})`;
+      if (j[2] && d2 >= 0 && d2 < 1.15) shadow = "10px 0 #2EF2FF,-10px 0 #E62E3A,0 14px 0 rgba(0,0,0,.5)";
+      if (d2 >= 0 && d2 < 1.15 && q % 5 === 3) op = .55;
+    }
+    else if (FEEL === "shake") { const k = sp(d2), sh = d2 >= 0 ? Math.sin(d2 * 62) * 9 * Math.exp(-d2 * 2.2) : 0; tf = `translate(${hit + sh}px,${sh * .4}px) scale(${lp(2.1, 1, k)}) rotate(${(lp(-6, -2, k) + sh * .12).toFixed(2)}deg)`; shadow = `0 0 ${(40 * Math.exp(-Math.max(0, d2) * 1.2)).toFixed(0)}px #E62E3A,0 14px 0 rgba(0,0,0,.5)`; }
+    else { const k = sp(d2); tf = `translate(${hit}px,${hit * .5}px) scale(${lp(2.1, 1, k)}) rotate(${lp(-6, -2, k).toFixed(2)}deg)`; if (d2 >= 0 && d2 < .3) shadow = "9px 0 #2EF2FF,-9px 0 #E62E3A,0 14px 0 rgba(0,0,0,.5)"; }
+    if (FEEL === "count") { const v = Math.round(NUM * eo(d2 / .5)).toLocaleString("en-US"), txt = String(H.big).replace(/[0-9][0-9,.]*/, v); if (w._t !== txt) { w.textContent = txt; w._t = txt; } }
+    st.opacity = op; st.transform = tf; st.textShadow = shadow; st.filter = filter;
     // punchline + tease
     const d3 = t - T3, k3 = sp(d3, 16, .6);
     $h("hk3").style.opacity = d3 >= 0 ? cl(d3 / .08) : 0; $h("hk3").style.transform = `translateY(${(1 - k3) * 50}px)`;
@@ -468,20 +519,36 @@ if (!isRender) {
   }
   const s0 = window.seek;
   window.seek = t => { s0(t); hookSeek(t); };
+
   const a0 = window.buildAudio;
   window.buildAudio = async ctx => {
     if (a0) await a0(ctx);
-    const sr = ctx.sampleRate, m = ctx.createGain(); m.gain.value = .9; m.connect(ctx.destination);
-    const nb = ctx.createBuffer(1, sr, sr), d = nb.getChannelData(0); let s = 7; for (let i = 0; i < d.length; i++) d[i] = ((s = (s * 16807) % 2147483647) / 2147483647) * 2 - 1;
-    const env = (g, t0, a, p, dec) => { g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(p, t0 + a); g.gain.exponentialRampToValueAtTime(.0001, t0 + a + dec); };
-    const osc = (type, f, t0, dur, p, fEnd) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, .003, p, dur); o.connect(g); g.connect(m); o.start(t0); o.stop(t0 + dur + .05); };
-    const nz = (t0, dur, p, type, f0, f1, q = 1) => { const src = ctx.createBufferSource(), b = ctx.createBiquadFilter(), g = ctx.createGain(); src.buffer = nb; b.type = type; b.Q.value = q; b.frequency.setValueAtTime(f0, t0); if (f1) b.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, .004, p, dur); src.connect(b); b.connect(g); g.connect(m); src.start(t0); src.stop(t0 + dur + .05); };
-    // frame-0 hit, the slam (sub drop + crack), punch tick, tease blip, burst-away whoosh
-    osc("sine", 120, 0, .45, .55, 38); nz(0, .2, .25, "highpass", 3000);
-    osc("sine", 70, T2, 1.1, .9, 24); nz(T2, .5, .45, "lowpass", 5000, 150, .7); osc("sawtooth", 880, T2, .18, .08, 110);
-    osc("sine", 160, T3, .25, .45, 50); nz(T3, .06, .2, "bandpass", 2500, null, 2);
-    osc("triangle", 1568, T4, .1, .1); osc("triangle", 2093, T4 + .08, .1, .07);
-    nz(OUT - .25, .5, .3, "bandpass", 400, 7000, 2);
+    const m = ctx.createGain(); m.gain.value = .7; m.connect(ctx.destination);
+    const SB = window.loadSfx ? await window.loadSfx(ctx) : {};
+    if (SB.es_impact) {
+      // at = the moment the sample's peak (or onset) must land on; off = skip into the sample
+      const smp = (k, at, g, peak = 0, off = 0, rate = 1) => { const b = SB[k]; if (!b) return; const s = ctx.createBufferSource(), gn = ctx.createGain(); s.buffer = b; s.playbackRate.value = rate; gn.gain.value = g; s.connect(gn); gn.connect(m); s.start(Math.max(0, at - peak / rate), off); };
+      smp("es_tok", 0, .5);                                   // frame 0
+      if (FEEL !== "reveal") smp("es_rev", 0, .5, 0, .705 - T2); // reverse whoosh, its peak on the hit
+      if (FEEL === "reveal") smp("es_whoosh", T2 + .1, .45, .354);
+      else smp("es_impact", T2, FEEL === "brake" ? 1 : .85, .117);
+      if (FEEL === "shake") smp("es_hit", T2 + .16, .6, .058);
+      if (FEEL === "glitch") smp("es_glitch", T2 + .05, .5);
+      if (FEEL === "count") for (let i = 0; i < 9; i++) smp("es_tick", T2 + .04 + i * .05, .35, 0, 0, .9 + i * .03);
+      smp("ui_snap", T3, .5);
+      smp("ui_select", T4, .4);
+      smp("es_whoosh", 1.9, .6, .354);                        // the burst into the page: whoosh peak just before the cut
+    } else {
+      const sr = ctx.sampleRate, nb = ctx.createBuffer(1, sr, sr), d = nb.getChannelData(0); let s = 7; for (let i = 0; i < d.length; i++) d[i] = ((s = (s * 16807) % 2147483647) / 2147483647) * 2 - 1;
+      const env = (g, t0, a, p, dec) => { g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(p, t0 + a); g.gain.exponentialRampToValueAtTime(.0001, t0 + a + dec); };
+      const osc = (type, f, t0, dur, p, fEnd) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur); env(g, t0, .003, p, dur); o.connect(g); g.connect(m); o.start(t0); o.stop(t0 + dur + .05); };
+      const nz = (t0, dur, p, type, f0, f1, q = 1) => { const src = ctx.createBufferSource(), b = ctx.createBiquadFilter(), g = ctx.createGain(); src.buffer = nb; b.type = type; b.Q.value = q; b.frequency.setValueAtTime(f0, t0); if (f1) b.frequency.exponentialRampToValueAtTime(f1, t0 + dur); env(g, t0, .004, p, dur); src.connect(b); b.connect(g); g.connect(m); src.start(t0); src.stop(t0 + dur + .05); };
+      osc("sine", 120, 0, .45, .55, 38); nz(0, .2, .25, "highpass", 3000);
+      osc("sine", 70, T2, 1.1, .9, 24); nz(T2, .5, .45, "lowpass", 5000, 150, .7); osc("sawtooth", 880, T2, .18, .08, 110);
+      osc("sine", 160, T3, .25, .45, 50); nz(T3, .06, .2, "bandpass", 2500, null, 2);
+      osc("triangle", 1568, T4, .1, .1); osc("triangle", 2093, T4 + .08, .1, .07);
+      nz(OUT - .25, .5, .3, "bandpass", 400, 7000, 2);
+    }
   };
 })();
 </script>

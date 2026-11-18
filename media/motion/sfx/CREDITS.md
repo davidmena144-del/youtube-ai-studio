@@ -8,3 +8,5 @@ Inlined into explainer pages by `build.mjs` (pages with `/*@SFX@*/` and `DATA.re
 | `es_swish.ogg` (swipe/flick), `es_whoosh.ogg` (pro_whoosh_big/swell), `es_hit.ogg` (cut_hit/punch), `es_impact.ogg` (impact/classic, trimmed 1.6 s with fade), `es_tok.ogg` (fit/hit/bamboo_tok) | Rendered with earshot 0.4.1 (Leon Lin, commit 4ac3d2a), `earshot sfx render ID` | MIT |
 
 Note: these are designed (code-made) sounds, not field recordings. Freesound CC0 recordings were found through Openverse but Freesound refuses downloads from the cloud workspace (HTTP 403), so recorded sounds can be added later from a local session.
+
+Added for the hook overlay (`hook.inject.html`): `es_rev.ogg` (pro_whoosh_big/reverse), `es_glitch.ogg` (glitch/burst), `es_tick.ogg` (hover_tick/mid), all rendered with earshot 0.4.1 (MIT).
