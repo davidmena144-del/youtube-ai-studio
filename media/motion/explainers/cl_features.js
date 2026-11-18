@@ -1,7 +1,7 @@
 // title: 3 حاجات في Claude ناس كتير متعرفهاش
 /* global window */
 window.DATA = {
-  font: "kufam",
+  font: "kufam", wordlit: true,
   duration: 34, bpm: 116,
   roots: [73.42, 58.27, 87.31, 65.41], chords: [[293.7, 349.2, 440], [233.1, 293.7, 349.2], [349.2, 440, 523.3], [261.6, 329.6, 392]],
   caps: [

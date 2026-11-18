@@ -76,7 +76,7 @@ body.kufam #capIn,body.kufam #ltTitle,body.kufam .k{font-weight:800}
 // title: 3 Things You Should Never Trust AI With
 /* global window */
 window.DATA = {
-  font: "kufam",
+  font: "kufam", wordlit: true,
   lang: "en", duration: 33, bpm: 104,
   roots: [49, 41.2, 55, 43.65], chords: [[196, 233.1, 293.7], [164.8, 196, 246.9], [220, 261.6, 329.6], [174.6, 220, 261.6]],
   caps: [
@@ -233,6 +233,20 @@ const SCENES = {
   },
 };
 
+// word-lit captions (kufam-kinetic-type): the line shows dim, each word lights in turn (0.2 s ease-out, rising 5 px),
+// then the key word gets a red box wiping in from the right (RTL) or left (LTR). A caption at t=0 is fully lit on frame 0.
+function wordLit(text, lt, frame0, light) {
+  const toks = []; text.replace(/\[([^\]]+)\]|([^\s\[\]]+)/g, (m, k, w) => { toks.push(k ? { w: k, key: true } : { w, key: false }); return m; });
+  const step = .2, keyAt = (toks.length - 1) * step + .18, rtl = DATA.lang !== "en";
+  return toks.map((o, i) => {
+    const lit = frame0 ? 1 : 1 - Math.pow(1 - clamp((lt - i * step) / .2), 3), op = (.3 + .7 * lit).toFixed(3), y = ((1 - lit) * 5).toFixed(1);
+    if (!o.key) return `<span style="display:inline-block;opacity:${op};transform:translateY(${y}px)">${o.w}</span>`;
+    const p = frame0 ? 1 : 1 - Math.pow(1 - clamp((lt - keyAt) / .24), 3), pc = (p * 100).toFixed(1);
+    const bg = `linear-gradient(to ${rtl ? "left" : "right"},#E62E3A ${pc}%,transparent ${pc}%)`;
+    return `<span style="display:inline-block;opacity:${p > 0 ? 1 : op};transform:translateY(${y}px);padding:0 16px;border-radius:12px;background:${bg};color:${p > .5 ? "#fff" : (light ? "#111" : "#F0E8D4")}">${o.w}</span>`;
+  }).join(" ");
+}
+
 // ---------- timeline helpers ----------
 const SHOTS = DATA.shots;          // [t0, scene, opts]
 const CAPS = DATA.caps;            // [t0, text with [keyword]]
@@ -263,17 +277,17 @@ function seek(t) {
   // captions: one chunk at a time, pop in
   const ci = at(CAPS, t), cap = $("capIn");
   if (ci >= 0) {
-    const [c0, text] = CAPS[ci], k = spring(t - c0, 18, .55), next = ci + 1 < CAPS.length ? CAPS[ci + 1][0] : VIDEO.duration;
-    const h = kw(text); if (cap._h !== h) { cap.innerHTML = h; cap._h = h; }
+    const [c0, text] = CAPS[ci], k = c0 === 0 ? 1 : spring(t - c0, 18, .55), next = ci + 1 < CAPS.length ? CAPS[ci + 1][0] : VIDEO.duration;
+    const h = DATA.wordlit ? wordLit(text, t - c0, c0 === 0, light) : kw(text); if (cap._h !== h) { cap.innerHTML = h; cap._h = h; }
     const end = DATA.capsEnd && t > DATA.capsEnd ? 0 : 1;
-    cap.style.opacity = clamp((t - c0) / .05) * end * (1 - seg(t, next - .04, next));
+    cap.style.opacity = (c0 === 0 ? 1 : clamp((t - c0) / .05)) * end * (1 - seg(t, next - .04, next)); // frame 0 must read
     cap.style.transform = `translateY(${((1 - k) * 34).toFixed(1)}px) scale(${lerp(1.12, 1, k).toFixed(3)})`;
     cap.style.color = light ? "#111" : W;
   } else cap.style.opacity = 0;
   // shots: card content + cut transitions
   const si = at(SHOTS, t), wrap = $("cardWrap");
   if (si >= 0) {
-    const [s0, name, o] = SHOTS[si], s1 = si + 1 < SHOTS.length ? SHOTS[si + 1][0] : VIDEO.duration, lt = t - s0;
+    const [s0, name, o] = SHOTS[si], s1 = si + 1 < SHOTS.length ? SHOTS[si + 1][0] : VIDEO.duration, lt = t - s0 + (s0 === 0 ? .6 : 0); // the opening shot is already settled on frame 0
     const html = name === "none" ? "" : SCENES[name](lt, s1 - s0, o || {});
     const sc = $("scene"); if (sc._h !== html) { sc.innerHTML = html; sc._h = html; }
     const inK = spring(lt, 15, .62), push = 1 + .035 * seg(lt, 0, s1 - s0);
@@ -298,7 +312,7 @@ function seek(t) {
   $("prog").style.background = light ? "rgba(0,0,0,.12)" : "rgba(255,255,255,.12)";
   $("rec").style.opacity = Math.floor(t * 2) % 2 ? .35 : 1;
   // flash on item starts
-  let fl = 0; for (const [i0] of ITEMS) { const d = t - i0; if (d >= 0 && d < .2) fl = Math.max(fl, .35 * (1 - d / .2)); }
+  let fl = 0; for (const [i0, num] of ITEMS) { if (!num) continue; const d = t - i0; if (d >= 0 && d < .2) fl = Math.max(fl, .35 * (1 - d / .2)); }
   $("flash").style.opacity = fl.toFixed(3);
   gctx.clearRect(0, 0, 1080, 1920);
   const tile = grain[Math.floor(t * 24) % 4];
