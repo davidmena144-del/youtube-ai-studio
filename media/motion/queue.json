@@ -8,6 +8,11 @@
     "ai_numbers",
     "ocean",
     "ai_tokens",
-    "sun_facts"
+    "sun_facts",
+    "cl_study",
+    "cl_shop",
+    "cl_trust",
+    "cl_job",
+    "cl_daily"
   ]
 }
