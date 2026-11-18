@@ -1,6 +1,7 @@
 // title: 3 أوامر لـ Claude لازم تعرفها
 /* global window */
 window.DATA = {
+  font: "kufam",
   duration: 34, bpm: 112,
   roots: [65.41, 55, 43.65, 49], chords: [[261.6, 329.6, 392], [220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7]],
   caps: [

@@ -45,6 +45,9 @@ body.en #capIn{font-size:86px;line-height:1.3}
 body.en #lt,body.en .input,body.en .bub{direction:ltr}
 body.en .input{padding:0 110px 0 30px!important}
 body.en .send{left:auto!important;right:72px}
+/* Kufam display face (DATA.font === "kufam"), Arabic + Latin */
+body.kufam .k,body.kufam .kr,body.kufam #capIn,body.kufam #ltTitle,body.kufam #ltSub,body.kufam .input,body.kufam .bub,body.kufam .qchip{font-family:"Kufam",sans-serif!important}
+body.kufam #capIn,body.kufam #ltTitle,body.kufam .k{font-weight:800}
 #ui{position:fixed;left:8px;bottom:8px;z-index:9;font:14px sans-serif;color:#fff;direction:ltr}
 </style>
 </head>
@@ -72,6 +75,7 @@ body.en .send{left:auto!important;right:72px}
    No narration: the captions carry the words; music + UI sounds carry the pace. Pure seek(t). */
 /*@DATA@*/
 const DATA = window.DATA;
+if (DATA.font === "kufam") document.body.classList.add("kufam");
 if (DATA.lang === "en") { document.documentElement.setAttribute("dir", "ltr"); document.documentElement.lang = "en"; document.body.classList.add("en"); }
 const VIDEO = { w: 1080, h: 1920, duration: DATA.duration };
 window.VIDEO = VIDEO;

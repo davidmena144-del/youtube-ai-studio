@@ -10,7 +10,7 @@ html,body{margin:0;background:#0B0B10;overflow:hidden}
 .layer{position:absolute;inset:0}
 .abs{position:absolute;white-space:nowrap}
 .c{left:0;right:0;text-align:center}
-.kufi{font-family:"Sans",sans-serif}
+.kufi{font-family:"Kufam",sans-serif}
 .kufi{padding:40px 0}
 .mono{font-family:"Mono",monospace;direction:ltr}
 #hud{position:absolute;inset:0;pointer-events:none;color:#fff;opacity:.5;font-size:24px}
@@ -308,7 +308,7 @@ function seek(t) {
     moon.setAttribute("transform", `translate(530 690) scale(${m.toFixed(3)})`);
     zzz.forEach((z, i) => { const d = ((t - 25.8 - i * .45) % 1.4 + 1.4) % 1.4; z.setAttribute("x", 700 + d * 90 + i * 30); z.setAttribute("y", 520 - d * 160 - i * 40); z.setAttribute("opacity", t > 25.8 ? (1 - d / 1.4) : 0); });
     const l = slamIn(t, 25.7);
-    show(T.label, "Every night you dream for about", { top: "1060px", fontSize: "64px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
+    show(T.label, "Every night you dream for about", { top: "1060px", fontSize: "54px", fontWeight: 700, color: CREAM, transform: `translateY(${l.y}px)` }, a);
     show(T.num, fmt(lerp(0, 120, k)), { top: "1130px", fontSize: "176px", fontWeight: 700, color: WHITE, direction: "ltr" }, a);
     const u = slamIn(t, 28.35);
     show(T.unit, "minutes", { top: "1380px", fontSize: "66px", fontWeight: 700, color: "#B9A8FF", transform: `scale(${u.s})` }, Math.min(a, u.a));
@@ -403,7 +403,7 @@ if (!isRender) {
   (function loop() { const t = now(); seek(t); if (!$("sc").matches(":active")) $("sc").value = t; requestAnimationFrame(loop); })();
 } else seek(0);
 </script>
-<script>window.HOOK = {"l1": "You'll have about", "big": "6,000", "l3": "thoughts today…", "tease": "That's not the strangest number.", "accent": "#2EF2FF", "glow": "rgba(91,46,255,.45)", "streak": "rgba(46,242,255,.8)", "s2": 190, "font": "Sans", "dir": "ltr"};</script>
+<script>window.HOOK = {"l1": "You'll have about", "big": "6,000", "l3": "thoughts today…", "tease": "That's not the strangest number.", "accent": "#2EF2FF", "glow": "rgba(91,46,255,.45)", "streak": "rgba(46,242,255,.8)", "s2": 190, "font": "Kufam", "dir": "ltr"};</script>
 <script>
 /* HOOK (0–2 s): a pattern-interrupt cold open placed over the first scene. Text is already on screen at frame 0
    (it is the first frame viewers and the feed see), the shock number slams at 0.35 s with a shake, flash and

@@ -12,6 +12,8 @@ const FONTS = [
   ["Mono", 400, pick("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"), "truetype"],
   ["Sans", 700, pick("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"), "truetype"],
   ["Sans", 400, pick("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"), "truetype"],
+  // Kufam (OFL, Google Fonts; licence in fonts/OFL-Kufam.txt): variable weight 400–900, Arabic + Latin display face
+  ["Kufam", "400 900", pick(new URL("./fonts/Kufam-wght.ttf", import.meta.url).pathname), "truetype"],
 ];
 const css = FONTS.map(([fam, w, p, fmt]) => `@font-face{font-family:"${fam}";font-weight:${w};src:url(data:font/${fmt === "opentype" ? "otf" : "ttf"};base64,${readFileSync(p).toString("base64")}) format("${fmt}")}`).join("\n");
 const html = readFileSync(src, "utf8");
