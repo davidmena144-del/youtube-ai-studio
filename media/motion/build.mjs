@@ -2,7 +2,7 @@
 //   node build.mjs page.html out.html
 // Fonts are OFL/Bitstream-licensed system fonts installed by scripts/install-media.sh (fonts-lemonada,
 // fonts-noto-core) plus DejaVu Sans Mono.
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 const [, , src, out] = process.argv;
 const pick = (...paths) => { const p = paths.find(existsSync); if (!p) throw new Error("font not found: " + paths.join(" | ")); return p; };
 const FONTS = [
@@ -18,5 +18,10 @@ const FONTS = [
 const css = FONTS.map(([fam, w, p, fmt]) => `@font-face{font-family:"${fam}";font-weight:${w};src:url(data:font/${fmt === "opentype" ? "otf" : "ttf"};base64,${readFileSync(p).toString("base64")}) format("${fmt}")}`).join("\n");
 const html = readFileSync(src, "utf8");
 if (!html.includes("/*@FONTS@*/")) throw new Error("page has no /*@FONTS@*/ placeholder");
-writeFileSync(out, html.replace("/*@FONTS@*/", css));
+// /*@SFX@*/ (optional): inline media/motion/sfx/*.ogg as window.SFX_FILES (CC0 uisfx + MIT earshot; see sfx/CREDITS.md)
+const sfxDir = new URL("./sfx/", import.meta.url).pathname;
+const sfx = html.includes("/*@SFX@*/") && existsSync(sfxDir)
+  ? "window.SFX_FILES = " + JSON.stringify(Object.fromEntries(readdirSync(sfxDir).filter((f) => f.endsWith(".ogg")).map((f) => [f.replace(/\.ogg$/, ""), "data:audio/ogg;base64," + readFileSync(sfxDir + f).toString("base64")]))) + ";"
+  : "";
+writeFileSync(out, html.replace("/*@FONTS@*/", css).replace("/*@SFX@*/", sfx));
 console.log("built", out, (Buffer.byteLength(css) / 1024).toFixed(0) + " KB of fonts");
