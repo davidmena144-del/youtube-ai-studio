@@ -10,6 +10,8 @@ const FONTS = [
   ["Kufi", 700, pick("/usr/share/fonts/truetype/noto/NotoKufiArabic-Bold.ttf"), "truetype"],
   ["Kufi", 400, pick("/usr/share/fonts/truetype/noto/NotoKufiArabic-Regular.ttf"), "truetype"],
   ["Mono", 400, pick("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"), "truetype"],
+  ["Sans", 700, pick("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"), "truetype"],
+  ["Sans", 400, pick("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"), "truetype"],
 ];
 const css = FONTS.map(([fam, w, p, fmt]) => `@font-face{font-family:"${fam}";font-weight:${w};src:url(data:font/${fmt === "opentype" ? "otf" : "ttf"};base64,${readFileSync(p).toString("base64")}) format("${fmt}")}`).join("\n");
 const html = readFileSync(src, "utf8");

@@ -9,10 +9,10 @@
   root.id = "hook";
   root.style.cssText = "position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:0";
   root.innerHTML = `<canvas id="hookFx" width="1080" height="1920" style="position:absolute;inset:0"></canvas>
-   <div id="hk1" style="position:absolute;left:60px;right:60px;top:560px;text-align:center;font-family:Kufi,sans-serif;font-weight:700;font-size:${H.s1 || 74}px;color:#fff;white-space:nowrap;line-height:1.5"></div>
-   <div id="hk2" style="position:absolute;left:30px;right:30px;top:680px;text-align:center;font-family:Kufi,sans-serif;font-weight:700;font-size:${H.s2 || 190}px;color:${H.accent};white-space:nowrap;line-height:1.5"></div>
-   <div id="hk3" style="position:absolute;left:60px;right:60px;top:${H.y3 || 990}px;text-align:center;font-family:Kufi,sans-serif;font-weight:700;font-size:${H.s3 || 76}px;color:#fff;white-space:nowrap;line-height:1.5"></div>
-   <div id="hk4" style="position:absolute;left:60px;right:60px;top:${(H.y3 || 990) + 170}px;text-align:center;font-family:Kufi,sans-serif;font-weight:700;font-size:50px;color:#FFD23F;white-space:nowrap;line-height:1.5"></div>`;
+   <div id="hk1" style="position:absolute;left:60px;right:60px;top:560px;text-align:center;font-family:${H.font || 'Kufi'},sans-serif;direction:${H.dir || 'rtl'};font-weight:700;font-size:${H.s1 || 74}px;color:#fff;white-space:nowrap;line-height:1.5"></div>
+   <div id="hk2" style="position:absolute;left:30px;right:30px;top:680px;text-align:center;font-family:${H.font || 'Kufi'},sans-serif;direction:${H.dir || 'rtl'};font-weight:700;font-size:${H.s2 || 190}px;color:${H.accent};white-space:nowrap;line-height:1.5"></div>
+   <div id="hk3" style="position:absolute;left:60px;right:60px;top:${H.y3 || 990}px;text-align:center;font-family:${H.font || 'Kufi'},sans-serif;direction:${H.dir || 'rtl'};font-weight:700;font-size:${H.s3 || 76}px;color:#fff;white-space:nowrap;line-height:1.5"></div>
+   <div id="hk4" style="position:absolute;left:60px;right:60px;top:${(H.y3 || 990) + 170}px;text-align:center;font-family:${H.font || 'Kufi'},sans-serif;direction:${H.dir || 'rtl'};font-weight:700;font-size:50px;color:#FFD23F;white-space:nowrap;line-height:1.5"></div>`;
   const stage = document.getElementById("stage");
   stage.insertBefore(root, document.getElementById("vig"));
   const $h = id => document.getElementById(id);
