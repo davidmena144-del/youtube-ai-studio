@@ -22,6 +22,8 @@ if (!html.includes("/*@FONTS@*/")) throw new Error("page has no /*@FONTS@*/ plac
 const sfxDir = new URL("./sfx/", import.meta.url).pathname;
 const sfx = html.includes("/*@SFX@*/") && existsSync(sfxDir)
   ? "window.SFX_FILES = " + JSON.stringify(Object.fromEntries(readdirSync(sfxDir).filter((f) => f.endsWith(".ogg")).map((f) => [f.replace(/\.ogg$/, ""), "data:audio/ogg;base64," + readFileSync(sfxDir + f).toString("base64")]))) + ";"
+    // loadSfx(ctx): decode every sample once per audio context; pages call it from buildAudio
+    + "window.loadSfx = async (ctx) => { const B = {}; for (const [k, uri] of Object.entries(window.SFX_FILES)) { const bin = atob(uri.split(',')[1]), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); B[k] = await ctx.decodeAudioData(u8.buffer); } return B; };"
   : "";
 writeFileSync(out, html.replace("/*@FONTS@*/", css).replace("/*@SFX@*/", sfx));
 console.log("built", out, (Buffer.byteLength(css) / 1024).toFixed(0) + " KB of fonts");

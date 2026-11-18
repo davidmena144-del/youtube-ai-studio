@@ -237,7 +237,17 @@ function drawBg(t) {
   bgx.fillStyle = g; bgx.fillRect(0, 0, 1080, 1920);
   const g2 = bgx.createRadialGradient(540, 860, 100, 540, 860, 760); g2.addColorStop(0, light ? "rgba(255,255,255,.6)" : "rgba(255,255,255,.04)"); g2.addColorStop(1, "rgba(0,0,0,0)");
   bgx.fillStyle = g2; bgx.fillRect(0, 0, 1080, 1920);
+  if (DATA.wordlit && !light) { // kufam-kinetic-type background detail: drifting bokeh + a barely visible ring grid
+    for (const b of BOKEH) {
+      const x = b.x + Math.sin(t * b.sp + b.ph) * b.amp, y = b.y + Math.cos(t * b.sp * .8 + b.ph) * b.amp * .7;
+      const gg = bgx.createRadialGradient(x, y, 0, x, y, b.r); gg.addColorStop(0, b.col + b.a + ")"); gg.addColorStop(1, b.col + "0)");
+      bgx.fillStyle = gg; bgx.fillRect(x - b.r, y - b.r, b.r * 2, b.r * 2);
+    }
+    bgx.strokeStyle = "rgba(240,232,212,.045)"; bgx.lineWidth = 2;
+    for (let gy = 40; gy < 1920; gy += 72) for (let gx2 = 36; gx2 < 1080; gx2 += 72) { bgx.beginPath(); bgx.arc(gx2, gy, 5, 0, Math.PI * 2); bgx.stroke(); }
+  }
 }
+const BOKEH = (() => { const r = rng(11), a = []; for (let i = 0; i < 13; i++) a.push({ x: 60 + r() * 960, y: 80 + r() * 1760, r: 90 + r() * 130, ph: r() * 6.28, sp: .18 + r() * .24, amp: 14 + r() * 20, col: ["rgba(255,190,80,", "rgba(230,46,58,", "rgba(90,170,160,", "rgba(255,220,150,"][i % 4], a: (.07 + r() * .07).toFixed(3) }); return a; })();
 const grain = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 13; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
 const gctx = $("grain").getContext("2d");
 
@@ -254,7 +264,7 @@ function seek(t) {
     const end = DATA.capsEnd && t > DATA.capsEnd ? 0 : 1;
     cap.style.opacity = (c0 === 0 ? 1 : clamp((t - c0) / .05)) * end * (1 - seg(t, next - .04, next)); // frame 0 must read
     cap.style.transform = `translateY(${((1 - k) * 34).toFixed(1)}px) scale(${lerp(1.12, 1, k).toFixed(3)})`;
-    cap.style.color = light ? "#111" : W;
+    cap.style.color = light ? "#111" : (DATA.wordlit ? "#F0E8D4" : W);
   } else cap.style.opacity = 0;
   // shots: card content + cut transitions
   const si = at(SHOTS, t), wrap = $("cardWrap");
@@ -335,16 +345,11 @@ window.buildAudio = async function (ctx) {
 // Sample-based SFX (media/motion/sfx: uisfx CC0 interface sounds + earshot MIT bank), placed on the exact event times.
 // Offsets put a whoosh's measured peak on the cut and a hit's onset on the frame. The music above stays synthesized.
 async function sampleSfx(ctx, out) {
-  const B = {};
-  for (const [k, uri] of Object.entries(window.SFX_FILES)) {
-    const bin = atob(uri.split(",")[1]), u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    B[k] = await ctx.decodeAudioData(u8.buffer);
-  }
+  const B = await window.loadSfx(ctx), T0 = window.HOOK ? 2 : 0; // the hook overlay owns the first 2 s
   const r = rng(29), bus = ctx.createGain(); bus.gain.value = DATA.sfxBus || .45; bus.connect(out); out = bus; // keep effects under the music's peak
   const play = (k, t, gain, rate = 1, peak = 0) => { const b = B[k]; if (!b) return; const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = gain; s.connect(g); g.connect(out); s.start(Math.max(0, t - peak / rate)); };
-  for (const [t0] of SHOTS) if (t0 > 0) play("es_swish", t0, .55, .95 + r() * .1, .131);
-  for (const [t0] of CAPS) play("ui_select", t0, .22, .92 + r() * .16);
+  for (const [t0] of SHOTS) if (t0 > T0) play("es_swish", t0, .55, .95 + r() * .1, .131);
+  for (const [t0] of CAPS) if (t0 >= T0) play("ui_select", t0, .22, .92 + r() * .16);
   for (const [t0, num] of ITEMS) if (num) play("es_hit", t0, .9, 1, .058);
   for (const t0 of TYPE_TICKS) play("ui_typing", t0, .3, .88 + r() * .26);
   for (const [s0, name, o] of SHOTS) {
@@ -359,7 +364,7 @@ async function sampleSfx(ctx, out) {
     else if (kind === "pop") play("ui_select", t0, .3);
     else if (kind === "swish") play("es_swish", t0, .5, 1, .131);
   }
-  play("es_impact", 0, .85, 1, 0);
+  if (!window.HOOK) play("es_impact", 0, .85, 1, 0);
 }
 
 // typing ticks for "type"/"msg" shots
