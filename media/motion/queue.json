@@ -1,23 +1,4 @@
 {
-  "_doc": "Daily Shorts queue (owner-approved public publishing). youtube-daily-short.yml publishes the first page whose ys:test:<page> marker is not yet on the channel. Add new pages to the end.",
-  "pages": [
-    "takka01",
-    "takka02",
-    "brain24h",
-    "earth1s",
-    "ai_numbers",
-    "ocean",
-    "ai_tokens",
-    "sun_facts",
-    "cl_study",
-    "cl_shop",
-    "cl_trust",
-    "cl_job",
-    "cl_daily",
-    "cl_prompts",
-    "en_trust",
-    "sleep",
-    "brain24h_en",
-    "cl_features"
-  ]
+  "_doc": "Daily Shorts queue (owner-approved public publishing). youtube-daily-short.yml publishes the first page whose ys:test:<page> marker is not yet on the channel. Add new pages to the end, and remove a page once it is published: a published page left here is uploaded again if its video is ever deleted from the channel.",
+  "pages": ["en_trust", "sleep", "brain24h_en", "cl_features"]
 }
