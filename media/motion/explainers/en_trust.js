@@ -1,6 +1,7 @@
 // title: 3 Things You Should Never Trust AI With
 /* global window */
 window.DATA = {
+  theme: {"bg": "#0C1424", "bg2": "#050912", "glow": "255,214,10", "accent": "#FFD60A", "onAccent": "#111111", "card": "#141F36", "card2": "#1D2B49", "line": "#2F4270", "scene": "#0F182B", "text": "#F2F5FF", "muted": "#9FB0D0", "warn": "#3A3210", "endBg": "#FFF6CC", "endCard": "#FFFDF2", "endInk": "#0C1424", "endAccent": "#D98200", "pattern": "hazard", "bokeh": ["rgba(255,214,10,", "rgba(80,130,255,", "rgba(255,140,40,"]},
   font: "kufam", wordlit: true, realSfx: true, grooveFrom: 2,
   lang: "en", duration: 33, bpm: 104,
   roots: [49, 41.2, 55, 43.65], chords: [[196, 233.1, 293.7], [164.8, 196, 246.9], [220, 261.6, 329.6], [174.6, 220, 261.6]],
@@ -24,4 +25,4 @@ window.DATA = {
   sfx: [[2.0, "hit"], [3.3, "hit"], [19.1, "hit"]],
 };
 // cold-open hook (hook.inject.html): the hero word's motion acts its meaning
-window.HOOK = {"accent": "#E62E3A", "glow": "rgba(230,46,58,.34)", "streak": "rgba(240,232,212,.75)", "font": "Kufam", "feel": "brake", "dir": "ltr", "l1": "Before you copy that AI answer…", "s1": 58, "big": "STOP.", "l3": "It sounds sure. It can be wrong.", "s3": 58, "tease": "3 places it happens"};
+window.HOOK = {"accent": "#FFD60A", "glow": "rgba(255,214,10,.2)", "streak": "rgba(200,215,255,.7)", "font": "Kufam", "feel": "brake", "dir": "ltr", "l1": "Before you copy that AI answer…", "s1": 58, "big": "STOP.", "l3": "It sounds sure. It can be wrong.", "s3": 58, "tease": "3 places it happens", "bg": "#070C18", "accent2": "#FFD60A"};
