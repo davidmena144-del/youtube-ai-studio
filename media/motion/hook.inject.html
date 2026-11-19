@@ -76,7 +76,7 @@
       if (d2 < .18) { fx.fillStyle = `rgba(255,255,255,${(.5 * (1 - d2 / .18)).toFixed(3)})`; fx.fillRect(0, 0, 1080, 1920); }
     }
     if (FEEL === "brake" && d2 >= 0) { // two hard bars lock the word in place
-      const k = eo(d2 / .12); fx.fillStyle = "#E62E3A";
+      const k = eo(d2 / .12); fx.fillStyle = H.accent2 || "#E62E3A";
       fx.fillRect(540 - 430 * k, 708, 860 * k, 12); fx.fillRect(540 - 430 * k, 948, 860 * k, 12);
     }
     if (FEEL === "shake" && d2 >= 0) { // cracks under the word

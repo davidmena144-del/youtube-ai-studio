@@ -1,6 +1,7 @@
 // title: 3 حاجات في Claude ناس كتير متعرفهاش
 /* global window */
 window.DATA = {
+  theme: {"bg": "#170B38", "bg2": "#07031A", "glow": "150,90,255", "accent": "#FFC83D", "onAccent": "#1A0F00", "card": "#21124A", "card2": "#2D1A63", "line": "#45308A", "scene": "#190C3D", "text": "#F6EEFF", "muted": "#B9A8E6", "warn": "#3A2A10", "endBg": "#F1EAFF", "endCard": "#FBF8FF", "endInk": "#170B38", "endAccent": "#7A3CFF", "pattern": "sparkle", "bokeh": ["rgba(255,200,61,", "rgba(150,90,255,", "rgba(255,120,200,"]},
   font: "kufam", wordlit: true, realSfx: true, grooveFrom: 2,
   duration: 34, bpm: 116,
   roots: [73.42, 58.27, 87.31, 65.41], chords: [[293.7, 349.2, 440], [233.1, 293.7, 349.2], [349.2, 440, 523.3], [261.6, 329.6, 392]],
@@ -23,4 +24,4 @@ window.DATA = {
   sfx: [[2.0, "hit"], [9.0, "ding"], [17.0, "ding"], [25.0, "ding"]],
 };
 // cold-open hook (hook.inject.html): the hero word's motion acts its meaning
-window.HOOK = {"accent": "#F0E8D4", "glow": "rgba(230,46,58,.30)", "streak": "rgba(240,232,212,.75)", "font": "Kufam", "feel": "reveal", "l1": "Claude فيه 3 حاجات", "big": "مستخبية", "l3": "…يمكن أول مرة تشوفها", "tease": "شوفهم في 30 ثانية"};
+window.HOOK = {"accent": "#FFC83D", "glow": "rgba(150,90,255,.38)", "streak": "rgba(255,220,150,.7)", "font": "Kufam", "feel": "reveal", "l1": "Claude فيه 3 حاجات", "big": "مستخبية", "l3": "…يمكن أول مرة تشوفها", "tease": "شوفهم في 30 ثانية", "bg": "#0C0522"};

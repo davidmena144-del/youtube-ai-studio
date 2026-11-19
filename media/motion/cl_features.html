@@ -6,7 +6,7 @@
 <style>
 /*@FONTS@*/
 html,body{margin:0;background:#0E0E10;overflow:hidden}
-#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:#141416;transform-origin:0 0}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;background:var(--bg,#141416);transform-origin:0 0}
 .L{position:absolute;inset:0}
 .k{font-family:"Kufi",sans-serif;font-weight:700}
 .kr{font-family:"Kufi",sans-serif;font-weight:400}
@@ -14,28 +14,28 @@ html,body{margin:0;background:#0E0E10;overflow:hidden}
 #bg{position:absolute;inset:0}
 #cap{position:absolute;left:60px;right:60px;top:250px;height:300px;display:flex;align-items:center;justify-content:center;text-align:center}
 #capIn{font-family:"Kufi",sans-serif;font-weight:700;font-size:92px;line-height:1.45;color:#fff;white-space:normal}
-.kw{background:#E62E3A;color:#fff;padding:0 18px;border-radius:14px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.kw{background:var(--accent,#E62E3A);color:var(--on-accent,#fff);padding:0 18px;border-radius:14px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 #cardWrap{position:absolute;left:70px;top:610px;width:940px;height:680px}
-#card{position:absolute;inset:0;border-radius:30px;overflow:hidden;background:#1E1E22;box-shadow:0 40px 90px rgba(0,0,0,.55)}
+#card{position:absolute;inset:0;border-radius:30px;overflow:hidden;background:var(--card,#1E1E22);box-shadow:0 40px 90px rgba(0,0,0,.55)}
 .br{position:absolute;width:46px;height:46px;border-color:#fff;border-style:solid;opacity:.9}
 #lt{position:absolute;left:70px;right:70px;top:1325px;direction:rtl}
 #ltRow{display:flex;align-items:center;gap:22px}
-#ltNum{font-family:"Mono",monospace;font-weight:700;font-size:40px;color:#fff;background:#E62E3A;border-radius:12px;padding:4px 16px;direction:ltr}
+#ltNum{font-family:"Mono",monospace;font-weight:700;font-size:40px;color:var(--on-accent,#fff);background:var(--accent,#E62E3A);border-radius:12px;padding:4px 16px;direction:ltr}
 #ltTitle{font-family:"Kufi",sans-serif;font-weight:700;font-size:64px;color:#fff;white-space:nowrap}
 #ltSub{font-family:"Kufi",sans-serif;font-weight:400;font-size:38px;color:#B9B9C4;margin-top:6px;white-space:nowrap}
 #prog{position:absolute;left:70px;right:70px;top:1545px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
-#progF{position:absolute;right:0;top:0;bottom:0;background:#E62E3A}
-#rec{position:absolute;left:52px;top:584px;width:16px;height:16px;border-radius:50%;background:#E62E3A}
+#progF{position:absolute;right:0;top:0;bottom:0;background:var(--accent,#E62E3A)}
+#rec{position:absolute;left:52px;top:584px;width:16px;height:16px;border-radius:50%;background:var(--accent,#E62E3A)}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
 #grain{position:absolute;inset:0;pointer-events:none}
 /* card scene parts */
 .sc{position:absolute;inset:0}
-.input{position:absolute;left:50px;right:50px;border-radius:30px;background:#2A2A30;border:3px solid #3A3A44;display:flex;align-items:center;padding:0 30px 0 110px;font-family:"Kufi",sans-serif;font-size:40px;color:#fff;min-height:110px;direction:rtl}
-.send{position:absolute;width:76px;height:76px;border-radius:50%;background:#E62E3A;display:flex;align-items:center;justify-content:center}
+.input{position:absolute;left:50px;right:50px;border-radius:30px;background:var(--card2,#2A2A30);border:3px solid var(--line,#3A3A44);display:flex;align-items:center;padding:0 30px 0 110px;font-family:"Kufi",sans-serif;font-size:40px;color:#fff;min-height:110px;direction:rtl}
+.send{position:absolute;width:76px;height:76px;border-radius:50%;background:var(--accent,#E62E3A);display:flex;align-items:center;justify-content:center}
 .phone{position:absolute;width:300px;height:560px;border-radius:44px;background:#0B0B10;border:8px solid #2E2E36;overflow:hidden}
 .post{position:absolute;left:14px;right:14px;border-radius:18px;background:#fff;overflow:hidden}
 .bub{position:absolute;max-width:600px;border-radius:30px;padding:16px 28px;font-family:"Kufi",sans-serif;font-size:38px;line-height:1.5;white-space:normal}
-.bin{right:40px;background:#2E2E36;color:#fff;border-radius:30px 30px 8px 30px}
+.bin{right:40px;background:var(--card2,#2E2E36);color:#fff;border-radius:30px 30px 8px 30px}
 .bout{left:40px;background:#FFF2E8;color:#16161C;border-radius:30px 30px 30px 8px}
 .dot{display:inline-block;width:16px;height:16px;border-radius:50%;background:#8A8A96;margin:0 6px}
 .cell{position:absolute;border-radius:10px}
@@ -77,6 +77,7 @@ body.kufam #capIn,body.kufam #ltTitle,body.kufam .k{font-weight:800}
 // title: 3 حاجات في Claude ناس كتير متعرفهاش
 /* global window */
 window.DATA = {
+  theme: {"bg": "#170B38", "bg2": "#07031A", "glow": "150,90,255", "accent": "#FFC83D", "onAccent": "#1A0F00", "card": "#21124A", "card2": "#2D1A63", "line": "#45308A", "scene": "#190C3D", "text": "#F6EEFF", "muted": "#B9A8E6", "warn": "#3A2A10", "endBg": "#F1EAFF", "endCard": "#FBF8FF", "endInk": "#170B38", "endAccent": "#7A3CFF", "pattern": "sparkle", "bokeh": ["rgba(255,200,61,", "rgba(150,90,255,", "rgba(255,120,200,"]},
   font: "kufam", wordlit: true, realSfx: true, grooveFrom: 2,
   duration: 34, bpm: 116,
   roots: [73.42, 58.27, 87.31, 65.41], chords: [[293.7, 349.2, 440], [233.1, 293.7, 349.2], [349.2, 440, 523.3], [261.6, 329.6, 392]],
@@ -99,14 +100,19 @@ window.DATA = {
   sfx: [[2.0, "hit"], [9.0, "ding"], [17.0, "ding"], [25.0, "ding"]],
 };
 // cold-open hook (hook.inject.html): the hero word's motion acts its meaning
-window.HOOK = {"accent": "#F0E8D4", "glow": "rgba(230,46,58,.30)", "streak": "rgba(240,232,212,.75)", "font": "Kufam", "feel": "reveal", "l1": "Claude فيه 3 حاجات", "big": "مستخبية", "l3": "…يمكن أول مرة تشوفها", "tease": "شوفهم في 30 ثانية"};
+window.HOOK = {"accent": "#FFC83D", "glow": "rgba(150,90,255,.38)", "streak": "rgba(255,220,150,.7)", "font": "Kufam", "feel": "reveal", "l1": "Claude فيه 3 حاجات", "big": "مستخبية", "l3": "…يمكن أول مرة تشوفها", "tease": "شوفهم في 30 ثانية", "bg": "#0C0522"};
 
 const DATA = window.DATA;
 if (DATA.font === "kufam") document.body.classList.add("kufam");
 if (DATA.lang === "en") { document.documentElement.setAttribute("dir", "ltr"); document.documentElement.lang = "en"; document.body.classList.add("en"); }
 const VIDEO = { w: 1080, h: 1920, duration: DATA.duration };
 window.VIDEO = VIDEO;
-const RED = "#E62E3A", Y = "#FFD23F", INK = "#0B0B10", W = "#FFFFFF";
+// Theme (DATA.theme): every page gets its own palette and background pattern, picked for its topic.
+// Defaults are the original red-on-black look, so pages without a theme are unchanged.
+const TH = Object.assign({ bg: "#141416", bg2: "", glow: "230,46,58", accent: "#E62E3A", onAccent: "#FFFFFF", card: "#1E1E22", card2: "#2A2A30", line: "#3A3A44",
+  scene: "#17171B", text: DATA.wordlit ? "#F0E8D4" : "#FFFFFF", muted: "#B9B9C4", warn: "#3A1A1E", endBg: "#EDEBE6", endCard: "#F4F1EA", endInk: "#111111", endAccent: "", pattern: "", bokeh: null }, DATA.theme || {});
+for (const [k, v] of Object.entries({ bg: TH.bg, accent: TH.accent, "on-accent": TH.onAccent, card: TH.card, card2: TH.card2, line: TH.line })) document.documentElement.style.setProperty("--" + k, v);
+const RED = TH.accent, PAPER = TH.endAccent || TH.accent, BAD = "#E62E3A", Y = "#FFD23F", INK = "#0B0B10", W = TH.text; // RED = the theme accent; PAPER = accent on light paper
 function spring(t, w = 16, z = .6) { if (t <= 0) return 0; const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + (z * w / wd) * Math.sin(wd * t)); }
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const ease = x => (x = clamp(x), x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -124,10 +130,10 @@ const SCENES = {
   // big typography inside the card
   big(lt, d, o) {
     const k = spring(lt, 15, .55);
-    return `<div class="sc" style="background:${o.bg || "#1E1E22"}"></div>
+    return `<div class="sc" style="background:${o.bg || TH.card}"></div>
       <div class="sc k" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:34px;color:${o.fg || W}">
        <div style="font-size:${o.size || 150}px;line-height:1.35;max-width:860px;text-align:center;white-space:normal;transform:scale(${lerp(1.5, 1, k).toFixed(3)});opacity:${clamp(lt / .08)}">${kw(o.text)}</div>
-       ${o.sub ? `<div class="kr" style="font-size:44px;opacity:${clamp((lt - .35) / .2)};color:${o.subc || "#B9B9C4"}">${o.sub}</div>` : ""}</div>`;
+       ${o.sub ? `<div class="kr" style="font-size:44px;opacity:${clamp((lt - .35) / .2)};color:${o.subc || TH.muted}">${o.sub}</div>` : ""}</div>`;
   },
   // a shop front: awning, sign lights up, number slams
   store(lt, d, o) {
@@ -144,10 +150,10 @@ const SCENES = {
   // prompt typed into an input, then sent
   type(lt, d, o) {
     const txt = typed(o.text, lt, .25, o.cps || 18), done = lt > .25 + [...o.text].length / (o.cps || 18), press = done ? Math.exp(-(lt - .25 - [...o.text].length / (o.cps || 18)) * 8) : 0;
-    return `<div class="sc" style="background:radial-gradient(circle at 50% 40%,#2A2A32,#18181C)"></div>
-      <div class="k" style="position:absolute;right:56px;top:70px;font-size:34px;color:#8A8A96">${o.label || "تكتب لـ Claude:"}</div>
-      <div class="input" style="top:180px;min-height:300px;align-items:flex-start;padding-top:28px;line-height:1.55;white-space:normal">${txt}${done ? "" : '<span style="color:#E62E3A">|</span>'}</div>
-      <div class="send" style="left:72px;top:${180 + 300 - 100}px;transform:scale(${(1 + .3 * press).toFixed(3)})"><svg width="36" height="36" viewBox="0 0 34 34"><path d="M17,28 L17,7 M8,15 L17,6 L26,15" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>`;
+    return `<div class="sc" style="background:radial-gradient(circle at 50% 40%,${TH.card2},${TH.scene})"></div>
+      <div class="k" style="position:absolute;right:56px;top:70px;font-size:34px;color:${TH.muted}">${o.label || "تكتب لـ Claude:"}</div>
+      <div class="input" style="top:180px;min-height:300px;align-items:flex-start;padding-top:28px;line-height:1.55;white-space:normal">${txt}${done ? "" : `<span style="color:${TH.accent}">|</span>`}</div>
+      <div class="send" style="left:72px;top:${180 + 300 - 100}px;transform:scale(${(1 + .3 * press).toFixed(3)})"><svg width="36" height="36" viewBox="0 0 34 34"><path d="M17,28 L17,7 M8,15 L17,6 L26,15" stroke="${TH.onAccent}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>`;
   },
   // a phone with posts sliding up
   posts(lt, d, o) {
@@ -171,19 +177,19 @@ const SCENES = {
     const r = lt < replyT0 ? "" : typed(o.reply, lt, replyT0, o.cps || 30), rDone = lt > replyT0 + [...o.reply].length / (o.cps || 30);
     const dots = lt > .7 && lt < replyT0 ? [0, 1, 2].map(i => `<span class="dot" style="transform:translateY(${(-Math.max(0, Math.sin(lt * 9 - i)) * 10).toFixed(1)}px)"></span>`).join("") : "";
     const cp = rDone ? lt - replyT0 - [...o.reply].length / (o.cps || 30) : -1;
-    return `<div class="sc" style="background:#17171B"></div>
-      <div class="kr" style="position:absolute;left:0;right:0;top:0;height:86px;background:#202026;display:flex;align-items:center;padding:0 40px;font-size:32px;color:#B9B9C4">${o.head || "رسايل العملاء"}</div>
+    return `<div class="sc" style="background:${TH.scene}"></div>
+      <div class="kr" style="position:absolute;left:0;right:0;top:0;height:86px;background:${TH.card2};display:flex;align-items:center;padding:0 40px;font-size:32px;color:${TH.muted}">${o.head || "رسايل العملاء"}</div>
       <div class="bub bin" style="top:${120 + (1 - inK) * 40}px;opacity:${clamp((lt - .15) / .1)}">${o.ask}</div>
       ${dots ? `<div class="bub bout" style="top:250px">${dots}</div>` : ""}
       ${r ? `<div class="bub bout" style="top:250px">${r}</div>` : ""}
-      ${cp >= 0 ? `<div class="k" style="position:absolute;left:40px;bottom:36px;border-radius:24px;padding:10px 30px;font-size:34px;background:${cp > .35 ? "#2BD576" : RED};color:#fff;transform:scale(${(1 + .25 * Math.exp(-Math.max(0, cp - .3) * 9) * (cp > .3 ? 1 : 0)).toFixed(3)})">${cp > .35 ? "اتنسخ ✓" : "نسخ"}</div>` : ""}`;
+      ${cp >= 0 ? `<div class="k" style="position:absolute;left:40px;bottom:36px;border-radius:24px;padding:10px 30px;font-size:34px;background:${cp > .35 ? "#2BD576" : RED};color:${cp > .35 ? "#fff" : TH.onAccent};transform:scale(${(1 + .25 * Math.exp(-Math.max(0, cp - .3) * 9) * (cp > .3 ? 1 : 0)).toFixed(3)})">${cp > .35 ? "اتنسخ ✓" : "نسخ"}</div>` : ""}`;
   },
   // a month grid filling day by day
   cal(lt, d, o) {
     const n = Math.floor(clamp((lt - .3) / (d - 1.0)) * 30), r = rng(5), cols = [RED, "#FFB020", "#2BD576", "#4C7DFF"];
     let g = ""; for (let i = 0; i < 30; i++) { const c = i % 6, row = Math.floor(i / 6), on = i < n, pop = on ? spring(lt - .3 - i / 30 * (d - 1.0), 18, .5) : 0; const col = cols[Math.floor(r() * 4)];
-      g += `<div class="cell" style="right:${40 + c * 145}px;top:${120 + row * 108}px;width:130px;height:94px;background:${on ? col : "#24242A"};transform:scale(${on ? lerp(.4, 1, pop).toFixed(3) : 1})"><span class="m" style="position:absolute;right:10px;top:6px;font-size:22px;color:${on ? "#fff" : "#55555F"}">${i + 1}</span>${on ? '<div style="position:absolute;left:12px;right:12px;bottom:14px;height:10px;border-radius:5px;background:rgba(255,255,255,.7)"></div>' : ""}</div>`; }
-    return `<div class="sc" style="background:#17171B"></div>
+      g += `<div class="cell" style="right:${40 + c * 145}px;top:${120 + row * 108}px;width:130px;height:94px;background:${on ? col : TH.card2};transform:scale(${on ? lerp(.4, 1, pop).toFixed(3) : 1})"><span class="m" style="position:absolute;right:10px;top:6px;font-size:22px;color:${on ? "#fff" : "#55555F"}">${i + 1}</span>${on ? '<div style="position:absolute;left:12px;right:12px;bottom:14px;height:10px;border-radius:5px;background:rgba(255,255,255,.7)"></div>' : ""}</div>`; }
+    return `<div class="sc" style="background:${TH.scene}"></div>
       <div class="k" style="position:absolute;right:44px;top:26px;font-size:40px;color:#fff">${o.title || "خطة الشهر"}</div>
       <div class="m" style="position:absolute;left:44px;top:34px;font-size:30px;color:${Y}">${n}/30</div>${g}`;
   },
@@ -191,23 +197,23 @@ const SCENES = {
   doc(lt, d, o) {
     const fold = ease(seg(lt, o.foldAt || 1.2, (o.foldAt || 1.2) + .6)), r = rng(8);
     let lines = ""; for (let i = 0; i < 14; i++) { const w = 60 + r() * 38; lines += `<div style="height:16px;border-radius:8px;background:#D9D5CC;margin:0 0 ${lerp(14, 4, fold)}px;width:${w}%;opacity:${(1 - fold * .85).toFixed(2)}"></div>`; }
-    const bullets = (o.bullets || []).map((b, i) => { const k = spring(lt - (o.foldAt || 1.2) - .5 - i * .45, 15, .6); return k > 0 ? `<div class="k" style="display:flex;align-items:center;gap:16px;font-size:40px;color:#16161C;margin:14px 0;transform:translateX(${((1 - k) * -80).toFixed(0)}px);opacity:${clamp(k * 2)}"><span style="flex:none;width:22px;height:22px;border-radius:50%;background:${RED}"></span>${b}</div>` : ""; }).join("");
-    return `<div class="sc" style="background:radial-gradient(circle at 50% 30%,#2A2A32,#17171B)"></div>
+    const bullets = (o.bullets || []).map((b, i) => { const k = spring(lt - (o.foldAt || 1.2) - .5 - i * .45, 15, .6); return k > 0 ? `<div class="k" style="display:flex;align-items:center;gap:16px;font-size:40px;color:#16161C;margin:14px 0;transform:translateX(${((1 - k) * -80).toFixed(0)}px);opacity:${clamp(k * 2)}"><span style="flex:none;width:22px;height:22px;border-radius:50%;background:${PAPER}"></span>${b}</div>` : ""; }).join("");
+    return `<div class="sc" style="background:radial-gradient(circle at 50% 30%,${TH.card2},${TH.scene})"></div>
       <div style="position:absolute;left:170px;right:170px;top:${lerp(40, 70, fold)}px;bottom:${lerp(-40, 60, fold)}px;border-radius:20px;background:#F6F3EC;padding:40px 46px;box-sizing:border-box;overflow:hidden;transform:rotate(${lerp(-2, 0, fold).toFixed(2)}deg)">
        <div class="k" style="font-size:34px;color:#8A8A96;margin-bottom:18px">${o.head || ""}</div>${fold < .98 ? lines : ""}${bullets}</div>
-      ${o.badge ? `<div class="k" style="position:absolute;left:40px;top:40px;background:${RED};color:#fff;border-radius:14px;padding:6px 20px;font-size:34px;opacity:${clamp((lt - (o.foldAt || 1.2)) / .2)}">${o.badge}</div>` : ""}`;
+      ${o.badge ? `<div class="k" style="position:absolute;left:40px;top:40px;background:${RED};color:${TH.onAccent};border-radius:14px;padding:6px 20px;font-size:34px;opacity:${clamp((lt - (o.foldAt || 1.2)) / .2)}">${o.badge}</div>` : ""}`;
   },
   // a quiz card: options, one turns green
   quiz(lt, d, o) {
     const pick = o.pickAt || 2.2;
-    const opts = o.options.map((x, i) => { const k = spring(lt - .3 - i * .18, 15, .6); const ok = lt > pick && i === o.correct; const bad = lt > pick && i === o.wrong; return `<div class="k" style="position:absolute;right:60px;left:60px;top:${200 + i * 104}px;height:84px;border-radius:20px;display:flex;align-items:center;padding:0 30px;font-size:38px;background:${ok ? "#2BD576" : bad ? RED : "#2A2A30"};color:#fff;transform:translateX(${((1 - k) * 200).toFixed(0)}px) scale(${ok ? (1 + .06 * Math.exp(-(lt - pick) * 6)).toFixed(3) : 1});opacity:${clamp(k * 2)}"><span class="m" style="margin-left:20px;opacity:.6">${"ABCD"[i]}</span>${x}${ok ? " ✓" : ""}</div>`; }).join("");
-    return `<div class="sc" style="background:#17171B"></div>
+    const opts = o.options.map((x, i) => { const k = spring(lt - .3 - i * .18, 15, .6); const ok = lt > pick && i === o.correct; const bad = lt > pick && i === o.wrong; return `<div class="k" style="position:absolute;right:60px;left:60px;top:${200 + i * 104}px;height:84px;border-radius:20px;display:flex;align-items:center;padding:0 30px;font-size:38px;background:${ok ? "#2BD576" : bad ? BAD : TH.card2};color:#fff;transform:translateX(${((1 - k) * 200).toFixed(0)}px) scale(${ok ? (1 + .06 * Math.exp(-(lt - pick) * 6)).toFixed(3) : 1});opacity:${clamp(k * 2)}"><span class="m" style="margin-left:20px;opacity:.6">${"ABCD"[i]}</span>${x}${ok ? " ✓" : ""}</div>`; }).join("");
+    return `<div class="sc" style="background:${TH.scene}"></div>
       <div class="k" style="position:absolute;right:60px;left:60px;top:50px;font-size:46px;color:#fff;line-height:1.45;white-space:normal">${o.q}</div>${opts}`;
   },
   // a warning sign shakes, with a crossed-out claim
   warn(lt, d, o) {
     const k = spring(lt - .1, 14, .4), sh = lt < .8 ? Math.sin(lt * 50) * 8 * Math.exp(-lt * 4) : 0;
-    return `<div class="sc" style="background:radial-gradient(circle at 50% 40%,#3A1A1E,#17171B)"></div>
+    return `<div class="sc" style="background:radial-gradient(circle at 50% 40%,${TH.warn},${TH.scene})"></div>
       <svg style="position:absolute;left:345px;top:70px;transform:translateX(${sh.toFixed(1)}px) scale(${lerp(.3, 1, k).toFixed(3)})" width="250" height="220" viewBox="0 0 250 220"><path d="M125,12 L238,206 L12,206 Z" fill="${Y}" stroke="${INK}" stroke-width="10" stroke-linejoin="round"/><rect x="113" y="70" width="24" height="80" rx="12" fill="${INK}"/><circle cx="125" cy="178" r="14" fill="${INK}"/></svg>
       <div class="k" style="position:absolute;left:40px;right:40px;top:330px;text-align:center;font-size:56px;color:#fff;opacity:${clamp((lt - .5) / .15)}">${kw(o.text)}</div>
       ${o.sub ? `<div class="kr" style="position:absolute;left:40px;right:40px;top:450px;text-align:center;font-size:38px;color:#B9B9C4;opacity:${clamp((lt - .9) / .2)}">${o.sub}</div>` : ""}`;
@@ -219,14 +225,14 @@ const SCENES = {
       return `<div style="position:absolute;left:${x - 50}px;bottom:120px;width:100px;height:${h.toFixed(0)}px;border-radius:14px 14px 0 0;background:${cols[i % 5]}"></div>
         <div class="k" style="position:absolute;left:${x - 90}px;width:180px;bottom:60px;text-align:center;font-size:30px;color:#B9B9C4">${labels[i]}</div>
         <div class="m" style="position:absolute;left:${x - 90}px;width:180px;bottom:${(130 + h).toFixed(0)}px;text-align:center;font-size:28px;color:#fff;opacity:${k > .9 ? 1 : 0}">${o.fmt ? o.fmt(v) : v}</div>`; }).join("");
-    return `<div class="sc" style="background:#17171B"></div>
+    return `<div class="sc" style="background:${TH.scene}"></div>
       <div class="k" style="position:absolute;right:44px;top:30px;font-size:40px;color:#fff">${o.title || ""}</div>${b}`;
   },
   // bookmark / save icon pulse (CTA)
   save(lt, d, o) {
     const k = spring(lt - .2, 14, .45), fill = lt > .9;
-    return `<div class="sc" style="background:${o.bg || "#F4F1EA"}"></div>
-      <svg style="position:absolute;left:370px;top:140px;transform:scale(${lerp(.3, 1, k).toFixed(3)})" width="200" height="260" viewBox="0 0 200 260"><path d="M20,20 L180,20 L180,240 L100,180 L20,240 Z" fill="${fill ? RED : "none"}" stroke="${fill ? RED : INK}" stroke-width="16" stroke-linejoin="round"/></svg>
+    return `<div class="sc" style="background:${o.bg || TH.endCard}"></div>
+      <svg style="position:absolute;left:370px;top:140px;transform:scale(${lerp(.3, 1, k).toFixed(3)})" width="200" height="260" viewBox="0 0 200 260"><path d="M20,20 L180,20 L180,240 L100,180 L20,240 Z" fill="${fill ? PAPER : "none"}" stroke="${fill ? PAPER : INK}" stroke-width="16" stroke-linejoin="round"/></svg>
       <div class="k" style="position:absolute;left:0;right:0;bottom:60px;text-align:center;font-size:50px;color:${INK};opacity:${clamp((lt - 1.0) / .2)}">${o.text || "احفظ الفيديو"}</div>`;
   },
 };
@@ -240,8 +246,8 @@ function wordLit(text, lt, frame0, light) {
     const lit = frame0 ? 1 : 1 - Math.pow(1 - clamp((lt - i * step) / .2), 3), op = (.3 + .7 * lit).toFixed(3), y = ((1 - lit) * 5).toFixed(1);
     if (!o.key) return `<span style="display:inline-block;opacity:${op};transform:translateY(${y}px)">${o.w}</span>`;
     const p = frame0 ? 1 : 1 - Math.pow(1 - clamp((lt - keyAt) / .24), 3), pc = (p * 100).toFixed(1);
-    const bg = `linear-gradient(to ${rtl ? "left" : "right"},#E62E3A ${pc}%,transparent ${pc}%)`;
-    return `<span style="display:inline-block;opacity:${p > 0 ? 1 : op};transform:translateY(${y}px);padding:0 16px;border-radius:12px;background:${bg};color:${p > .5 ? "#fff" : (light ? "#111" : "#F0E8D4")}">${o.w}</span>`;
+    const bg = `linear-gradient(to ${rtl ? "left" : "right"},${TH.accent} ${pc}%,transparent ${pc}%)`;
+    return `<span style="display:inline-block;opacity:${p > 0 ? 1 : op};transform:translateY(${y}px);padding:0 16px;border-radius:12px;background:${bg};color:${p > .5 ? TH.onAccent : (light ? TH.endInk : TH.text)}">${o.w}</span>`;
   }).join(" ");
 }
 
@@ -257,9 +263,11 @@ const isLight = t => LIGHT.some(([a, b]) => t >= a && t < b);
 const bgx = $("bg").getContext("2d");
 function drawBg(t) {
   const light = isLight(t);
-  bgx.fillStyle = light ? "#EDEBE6" : "#141416"; bgx.fillRect(0, 0, 1080, 1920);
+  bgx.fillStyle = light ? TH.endBg : TH.bg; bgx.fillRect(0, 0, 1080, 1920);
+  if (!light && TH.bg2) { const lg = bgx.createLinearGradient(0, 0, 0, 1920); lg.addColorStop(0, TH.bg); lg.addColorStop(1, TH.bg2); bgx.fillStyle = lg; bgx.fillRect(0, 0, 1080, 1920); }
+  drawPattern(t, light);
   const gx = 540 + Math.sin(t * .4) * 120;
-  const g = bgx.createRadialGradient(gx, 1650, 60, gx, 1650, 900); g.addColorStop(0, light ? "rgba(230,46,58,.12)" : "rgba(230,46,58,.28)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  const g = bgx.createRadialGradient(gx, 1650, 60, gx, 1650, 900); g.addColorStop(0, `rgba(${TH.glow},${light ? .12 : .28})`); g.addColorStop(1, "rgba(0,0,0,0)");
   bgx.fillStyle = g; bgx.fillRect(0, 0, 1080, 1920);
   const g2 = bgx.createRadialGradient(540, 860, 100, 540, 860, 760); g2.addColorStop(0, light ? "rgba(255,255,255,.6)" : "rgba(255,255,255,.04)"); g2.addColorStop(1, "rgba(0,0,0,0)");
   bgx.fillStyle = g2; bgx.fillRect(0, 0, 1080, 1920);
@@ -273,7 +281,22 @@ function drawBg(t) {
     for (let gy = 40; gy < 1920; gy += 72) for (let gx2 = 36; gx2 < 1080; gx2 += 72) { bgx.beginPath(); bgx.arc(gx2, gy, 5, 0, Math.PI * 2); bgx.stroke(); }
   }
 }
-const BOKEH = (() => { const r = rng(11), a = []; for (let i = 0; i < 13; i++) a.push({ x: 60 + r() * 960, y: 80 + r() * 1760, r: 90 + r() * 130, ph: r() * 6.28, sp: .18 + r() * .24, amp: 14 + r() * 20, col: ["rgba(255,190,80,", "rgba(230,46,58,", "rgba(90,170,160,", "rgba(255,220,150,"][i % 4], a: (.07 + r() * .07).toFixed(3) }); return a; })();
+// Topic patterns behind everything: "terminal" (scanlines + falling code), "sparkle" (twinkling stars + light beams),
+// "hazard" (moving caution tape). Drawn every frame from t only.
+const PAT = (() => { const r = rng(77), code = [], stars = []; for (let i = 0; i < 13; i++) code.push({ x: 50 + i * 82 + r() * 20, y: r() * 2000, sp: 40 + r() * 70, fl: 1 + r() * 3, a: .5 + r() * .5, g: ["0", "1", ">", "_", "{", "}", "/", "1", "0"].sort(() => r() - .5) }); for (let i = 0; i < 34; i++) stars.push({ x: r() * 1080, y: r() * 1920, r: 7 + r() * 13, sp: .8 + r() * 1.8, ph: r() * 6.28 }); return { code, stars }; })();
+function drawPattern(t, light) {
+  if (TH.pattern === "terminal" && !light) {
+    bgx.fillStyle = "rgba(255,255,255,.022)"; for (let y = (t * 18) % 8; y < 1920; y += 8) bgx.fillRect(0, y, 1080, 2);
+    bgx.font = '26px "Mono"'; bgx.textAlign = "center";
+    for (const c of PAT.code) for (let i = 0; i < 9; i++) { const y = ((c.y + t * c.sp + i * 44) % 2000) - 40; bgx.fillStyle = `rgba(${TH.glow},${((.02 + .1 * i / 9) * c.a).toFixed(3)})`; bgx.fillText(c.g[(i + Math.floor(t * c.fl)) % c.g.length], c.x, y); }
+  } else if (TH.pattern === "sparkle" && !light) {
+    for (const [x0, w] of [[250, 300], [760, 240]]) { const sw = Math.sin(t * .5 + x0) * 70, lg = bgx.createLinearGradient(0, 0, 0, 1500); lg.addColorStop(0, `rgba(${TH.glow},.13)`); lg.addColorStop(1, `rgba(${TH.glow},0)`); bgx.fillStyle = lg; bgx.beginPath(); bgx.moveTo(x0 - 40 + sw, 0); bgx.lineTo(x0 + 40 + sw, 0); bgx.lineTo(x0 + w + sw * 2, 1500); bgx.lineTo(x0 - w + sw * 2, 1500); bgx.closePath(); bgx.fill(); }
+    for (const s of PAT.stars) { const a = .08 + .5 * Math.pow(Math.abs(Math.sin(t * s.sp + s.ph)), 3), R = s.r * (.7 + a); bgx.fillStyle = `rgba(255,214,120,${a.toFixed(3)})`; bgx.beginPath(); bgx.moveTo(s.x, s.y - R); bgx.quadraticCurveTo(s.x, s.y, s.x + R, s.y); bgx.quadraticCurveTo(s.x, s.y, s.x, s.y + R); bgx.quadraticCurveTo(s.x, s.y, s.x - R, s.y); bgx.quadraticCurveTo(s.x, s.y, s.x, s.y - R); bgx.fill(); }
+  } else if (TH.pattern === "hazard") {
+    for (const [y0, dir] of [[150, 1], [1640, -1]]) { const h = 30, off = ((t * 40 * dir) % 60 + 60) % 60; bgx.save(); bgx.beginPath(); bgx.rect(0, y0, 1080, h); bgx.clip(); bgx.fillStyle = TH.accent; bgx.fillRect(0, y0, 1080, h); bgx.fillStyle = "#111"; for (let x = -120 + off; x < 1140; x += 60) { bgx.beginPath(); bgx.moveTo(x, y0 + h); bgx.lineTo(x + 30, y0 + h); bgx.lineTo(x + 30 + h, y0); bgx.lineTo(x + h, y0); bgx.closePath(); bgx.fill(); } bgx.restore(); }
+  }
+}
+const BOKEH = (() => { const r = rng(11), a = []; for (let i = 0; i < 13; i++) a.push({ x: 60 + r() * 960, y: 80 + r() * 1760, r: 90 + r() * 130, ph: r() * 6.28, sp: .18 + r() * .24, amp: 14 + r() * 20, col: (TH.bokeh || ["rgba(255,190,80,", "rgba(230,46,58,", "rgba(90,170,160,", "rgba(255,220,150,"])[i % (TH.bokeh || [1, 2, 3, 4]).length], a: (.07 + r() * .07).toFixed(3) }); return a; })();
 const grain = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 13; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
 const gctx = $("grain").getContext("2d");
 
@@ -290,7 +313,7 @@ function seek(t) {
     const end = DATA.capsEnd && t > DATA.capsEnd ? 0 : 1;
     cap.style.opacity = (c0 === 0 ? 1 : clamp((t - c0) / .05)) * end * (1 - seg(t, next - .04, next)); // frame 0 must read
     cap.style.transform = `translateY(${((1 - k) * 34).toFixed(1)}px) scale(${lerp(1.12, 1, k).toFixed(3)})`;
-    cap.style.color = light ? "#111" : (DATA.wordlit ? "#F0E8D4" : W);
+    cap.style.color = light ? TH.endInk : TH.text;
   } else cap.style.opacity = 0;
   // shots: card content + cut transitions
   const si = at(SHOTS, t), wrap = $("cardWrap");
@@ -313,7 +336,7 @@ function seek(t) {
     $("ltNum").textContent = num; $("ltTitle").textContent = title; $("ltSub").textContent = sub;
     lt3.style.opacity = clamp((t - i0) / .1) * (1 - seg(t, next - .1, next));
     lt3.style.transform = `translateY(${((1 - k) * 40).toFixed(1)}px)`;
-    $("ltTitle").style.color = light ? "#111" : W; $("ltSub").style.color = light ? "#55555F" : "#B9B9C4";
+    $("ltTitle").style.color = light ? TH.endInk : TH.text; $("ltSub").style.color = light ? "#55555F" : TH.muted;
     $("ltSub").style.opacity = clamp((t - i0 - .25) / .2);
   } else lt3.style.opacity = 0;
   $("progF").style.width = (t / VIDEO.duration * 100).toFixed(2) + "%";
@@ -489,7 +512,7 @@ if (!isRender) {
       if (d2 < .18) { fx.fillStyle = `rgba(255,255,255,${(.5 * (1 - d2 / .18)).toFixed(3)})`; fx.fillRect(0, 0, 1080, 1920); }
     }
     if (FEEL === "brake" && d2 >= 0) { // two hard bars lock the word in place
-      const k = eo(d2 / .12); fx.fillStyle = "#E62E3A";
+      const k = eo(d2 / .12); fx.fillStyle = H.accent2 || "#E62E3A";
       fx.fillRect(540 - 430 * k, 708, 860 * k, 12); fx.fillRect(540 - 430 * k, 948, 860 * k, 12);
     }
     if (FEEL === "shake" && d2 >= 0) { // cracks under the word

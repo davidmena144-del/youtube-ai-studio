@@ -1,6 +1,7 @@
 // title: 3 أوامر لـ Claude لازم تعرفها
 /* global window */
 window.DATA = {
+  theme: {"bg": "#04140F", "bg2": "#020907", "glow": "43,245,160", "accent": "#2BF5A0", "onAccent": "#03130E", "card": "#0A2019", "card2": "#0F2E24", "line": "#1D4A3B", "scene": "#071A14", "text": "#EAFBF3", "muted": "#8FC7B2", "warn": "#12382B", "endBg": "#E3F5EC", "endCard": "#F4FBF7", "endInk": "#04140F", "endAccent": "#0B9A63", "pattern": "terminal", "bokeh": ["rgba(43,245,160,", "rgba(255,214,90,", "rgba(60,200,220,"]},
   font: "kufam", wordlit: true, realSfx: true, grooveFrom: 2,
   duration: 34, bpm: 112,
   roots: [65.41, 55, 43.65, 49], chords: [[261.6, 329.6, 392], [220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7]],
@@ -24,4 +25,4 @@ window.DATA = {
   sfx: [[2.0, "hit"], [9.4, "ding"], [16.0, "ding"], [25.4, "ding"]],
 };
 // cold-open hook (hook.inject.html): the hero word's motion acts its meaning
-window.HOOK = {"accent": "#FFD23F", "glow": "rgba(255,210,63,.28)", "streak": "rgba(240,232,212,.75)", "font": "Kufam", "feel": "slam", "l1": "ردود Claude مش عاجباك؟", "s1": 60, "big": "3 أوامر", "l3": "…انسخهم زي ما هم", "tease": "التالت بيخلّيه يصلّح نفسه"};
+window.HOOK = {"accent": "#2BF5A0", "glow": "rgba(43,245,160,.26)", "streak": "rgba(200,255,230,.7)", "font": "Kufam", "feel": "slam", "l1": "ردود Claude مش عاجباك؟", "s1": 60, "big": "3 أوامر", "l3": "…انسخهم زي ما هم", "tease": "التالت بيخلّيه يصلّح نفسه", "bg": "#03100C"};
