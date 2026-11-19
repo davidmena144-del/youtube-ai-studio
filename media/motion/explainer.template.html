@@ -266,7 +266,7 @@ function drawBg(t) {
   }
 }
 // Topic patterns behind everything: "terminal" (scanlines + falling code), "sparkle" (twinkling stars + light beams),
-// "hazard" (moving caution tape), "pulse" (heartbeat trace), "orbit", "waves", "grid" (blueprint), "radar". Drawn every frame from t only.
+// "hazard" (moving caution tape), "pulse" (heartbeat trace), "orbit", "waves", "grid" (blueprint), "radar", "hex" (honeycomb). Drawn every frame from t only.
 const PAT = (() => { const r = rng(77), code = [], stars = []; for (let i = 0; i < 13; i++) code.push({ x: 50 + i * 82 + r() * 20, y: r() * 2000, sp: 40 + r() * 70, fl: 1 + r() * 3, a: .5 + r() * .5, g: ["0", "1", ">", "_", "{", "}", "/", "1", "0"].sort(() => r() - .5) }); for (let i = 0; i < 34; i++) stars.push({ x: r() * 1080, y: r() * 1920, r: 7 + r() * 13, sp: .8 + r() * 1.8, ph: r() * 6.28 }); return { code, stars }; })();
 function drawPattern(t, light) {
   if (TH.pattern === "terminal" && !light) {
@@ -293,6 +293,12 @@ function drawPattern(t, light) {
     bgx.strokeStyle = `rgba(${TH.glow},.1)`; bgx.lineWidth = 3; for (let r = 180; r <= 1100; r += 180) { bgx.beginPath(); bgx.arc(540, 950, r, 0, Math.PI * 2); bgx.stroke(); }
     const a = t * .9; for (let i = 0; i < 24; i++) { bgx.fillStyle = `rgba(${TH.glow},${(.11 * (1 - i / 24)).toFixed(3)})`; bgx.beginPath(); bgx.moveTo(540, 950); bgx.arc(540, 950, 1150, a - i * .035, a - (i + 1) * .035, true); bgx.closePath(); bgx.fill(); }
     for (const s of PAT.stars.slice(0, 9)) { const ang = Math.atan2(s.y - 950, s.x - 540), d = (((a - ang) % 6.283) + 6.283) % 6.283, al = Math.exp(-d * 1.2); bgx.fillStyle = `rgba(${TH.glow},${(.75 * al).toFixed(3)})`; bgx.beginPath(); bgx.arc(s.x, s.y, 9, 0, Math.PI * 2); bgx.fill(); }
+  } else if (TH.pattern === "hex" && !light) { // honeycomb, a few cells filling and emptying
+    const R = 62, w = R * Math.sqrt(3); let n = 0; bgx.lineWidth = 3;
+    for (let row = -1; row < 22; row++) for (let col = -1; col < 12; col++) { const cx = col * w + (row % 2 ? w / 2 : 0), cy = row * R * 1.5 + ((t * 10) % (R * 3)); n++;
+      bgx.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i + Math.PI / 6; i ? bgx.lineTo(cx + R * Math.cos(a), cy + R * Math.sin(a)) : bgx.moveTo(cx + R * Math.cos(a), cy + R * Math.sin(a)); } bgx.closePath();
+      const f = Math.pow(Math.max(0, Math.sin(t * .8 + n * 1.7)), 6); if (n % 5 === 0 && f > .02) { bgx.fillStyle = `rgba(${TH.glow},${(.16 * f).toFixed(3)})`; bgx.fill(); }
+      bgx.strokeStyle = `rgba(${TH.glow},.085)`; bgx.stroke(); }
   } else if (TH.pattern === "hazard") {
     for (const [y0, dir] of [[150, 1], [1640, -1]]) { const h = 30, off = ((t * 40 * dir) % 60 + 60) % 60; bgx.save(); bgx.beginPath(); bgx.rect(0, y0, 1080, h); bgx.clip(); bgx.fillStyle = TH.accent; bgx.fillRect(0, y0, 1080, h); bgx.fillStyle = "#111"; for (let x = -120 + off; x < 1140; x += 60) { bgx.beginPath(); bgx.moveTo(x, y0 + h); bgx.lineTo(x + 30, y0 + h); bgx.lineTo(x + 30 + h, y0); bgx.lineTo(x + h, y0); bgx.closePath(); bgx.fill(); } bgx.restore(); }
   }

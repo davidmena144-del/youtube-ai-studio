@@ -1,4 +1,4 @@
 {
   "_doc": "Daily Shorts queue (owner-approved public publishing). youtube-daily-short.yml publishes the first page whose ys:test:<page> marker is not yet on the channel. Add new pages to the end, and remove a page once it is published: a published page left here is uploaded again if its video is ever deleted from the channel.",
-  "pages": ["heart", "cl_mistakes", "moon", "cl_private", "water"]
+  "pages": ["bees", "cl_travel", "moon", "cl_private", "water"]
 }
