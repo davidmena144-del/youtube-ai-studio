@@ -66,6 +66,17 @@ jobs:
           UPLOAD_PRIVACY: public
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         run: node --import tsx scripts/youtube-test-upload.ts render "media/motion/$PAGE.seo.json" "ys:test:${PAGE//_/-}"
+      # A 1080p copy goes to a public bucket so Buffer can post the same Short to TikTok. Never fails the run.
+      - name: Copy for TikTok (public bucket)
+        if: steps.pick.outputs.page != ''
+        continue-on-error: true
+        env:
+          PAGE: ${{ steps.pick.outputs.page }}
+          SUPABASE_URL: https://tzmvrhixsymehvoffzvl.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_GaoM45Ni-k1jBRY7pWdiOg_CVMDO3ap # publishable by design, not a secret
+        run: |
+          ffmpeg -v error -y -i "/tmp/$PAGE.mp4" -vf "scale=1080:1920:flags=lanczos" -c:v libx264 -preset medium -crf 23 -maxrate 6M -bufsize 12M -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart "/tmp/$PAGE.tiktok.mp4"
+          node --import tsx scripts/tiktok-upload.ts "/tmp/$PAGE.tiktok.mp4" "$PAGE"
       - uses: actions/upload-artifact@v4
         if: always() && steps.pick.outputs.page != ''
         with:

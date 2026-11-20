@@ -1,0 +1,54 @@
+name: TikTok copy
+
+# Renders one page at 1080x1920 and puts it in the public bucket Buffer reads from (no YouTube upload).
+# Used to backfill a Short that is already on YouTube, or to test the TikTok path.
+
+on:
+  workflow_dispatch:
+    inputs:
+      page:
+        description: Page name in media/motion (for example bees)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PAGE: ${{ inputs.page }}
+      SUPABASE_URL: https://tzmvrhixsymehvoffzvl.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: sb_publishable_GaoM45Ni-k1jBRY7pWdiOg_CVMDO3ap # publishable by design, not a secret
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev --ignore-scripts
+      - name: Check the page name
+        run: |
+          [[ "$PAGE" =~ ^[a-z0-9_]{3,40}$ ]] && test -f "media/motion/$PAGE.html"
+      - name: Renderer (Chromium via Playwright, ffmpeg, fonts)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends ffmpeg fonts-noto-core fonts-lemonada fonts-dejavu-core
+          sudo apt-get install -y -q --no-install-recommends fonts-dejavu-mono || true
+          npm i --no-save --ignore-scripts playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Render (1080x1920)
+        working-directory: media/motion
+        run: |
+          node build.mjs "$PAGE.html" "/tmp/$PAGE.built.html"
+          cp render.mjs /tmp/render.mjs && ln -sfn "$GITHUB_WORKSPACE/node_modules" /tmp/node_modules
+          cd /tmp && node render.mjs "$PAGE.built.html" "$PAGE.mp4" 30 4 "$(nproc)"
+      - name: Upload to the public bucket
+        run: |
+          ffmpeg -v error -y -i "/tmp/$PAGE.mp4" -c:v libx264 -preset medium -crf 23 -maxrate 6M -bufsize 12M -pix_fmt yuv420p -c:a aac -b:a 160k -movflags +faststart "/tmp/$PAGE.tiktok.mp4"
+          node --import tsx scripts/tiktok-upload.ts "/tmp/$PAGE.tiktok.mp4" "$PAGE"
