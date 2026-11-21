@@ -1,0 +1,66 @@
+name: Story voice
+
+# Narrates one 3D story with the free SILMA voice and pushes the two result files
+# (stories/<name>.voice.mp3 and <name>.timing.json) to the `voice-out` branch, where the render
+# session picks them up. Nothing is published by this workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      story:
+        description: Story name in media/motion/story3d/stories (for example lamps)
+        required: true
+        type: string
+      ref:
+        description: Branch that holds the story file
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: write # pushes only to the voice-out branch
+
+concurrency:
+  group: story-voice
+  cancel-in-progress: false
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      STORY: ${{ inputs.story }}
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Check the story name
+        run: |
+          [[ "$STORY" =~ ^[a-z0-9_]{3,40}$ ]] && test -f "media/motion/story3d/stories/$STORY.js"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: System packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+      - name: Install the voice engine
+        run: |
+          python -m venv .venv && . .venv/bin/activate
+          pip install -q --index-url https://download.pytorch.org/whl/cpu torch torchaudio torchvision
+          pip install -q silma-tts==1.0.5 soundfile numpy
+      - name: Narrate
+        run: |
+          . .venv/bin/activate
+          python media/motion/story3d/voice.py "$STORY" --threads "$(nproc)"
+      - name: Push the narration to voice-out
+        run: |
+          mkdir -p /tmp/out && cp "media/motion/story3d/stories/$STORY.voice.mp3" "media/motion/story3d/stories/$STORY.timing.json" /tmp/out/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q --orphan voice-out-new
+          git rm -rfq --cached .
+          git clean -fdxq -e .venv
+          cp /tmp/out/* .
+          git add "$STORY.voice.mp3" "$STORY.timing.json"
+          git commit -q -m "Narration for $STORY"
+          git push -q -f origin HEAD:voice-out
