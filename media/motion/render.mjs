@@ -17,7 +17,8 @@ if (!html || !out) { console.log('usage: node render.mjs page.html out.mp4 [fps]
 const run = (args) => new Promise((res, rej) => { const p = spawn('ffmpeg', args, { stdio: 'inherit' }); p.on('close', c => c ? rej(new Error('ffmpeg ' + c)) : res()); });
 const url = pathToFileURL(path.resolve(html)).href + '?render';
 const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
-const browser = await chromium.launch({ args: ['--allow-file-access-from-files'], ...(proxy ? { proxy: { server: proxy } } : {}) });
+const browser = await chromium.launch({ args: ['--allow-file-access-from-files', ...(process.env.WEBGL ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] : [])], // WEBGL=1: software WebGL for the 3D story pages
+  ...(proxy ? { proxy: { server: proxy } } : {}) });
 
 // Read the size first, then open every page at exactly that size (pages that measure themselves on load stay correct).
 const probe = await browser.newPage();
