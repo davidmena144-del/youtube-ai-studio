@@ -325,6 +325,10 @@ function drawPattern(t, light) {
       bgx.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i + Math.PI / 6; i ? bgx.lineTo(cx + R * Math.cos(a), cy + R * Math.sin(a)) : bgx.moveTo(cx + R * Math.cos(a), cy + R * Math.sin(a)); } bgx.closePath();
       const f = Math.pow(Math.max(0, Math.sin(t * .8 + n * 1.7)), 6); if (n % 5 === 0 && f > .02) { bgx.fillStyle = `rgba(${TH.glow},${(.16 * f).toFixed(3)})`; bgx.fill(); }
       bgx.strokeStyle = `rgba(${TH.glow},.085)`; bgx.stroke(); }
+  } else if (TH.pattern === "bolt" && !light) { // rain streaks and a lightning bolt every few seconds
+    bgx.strokeStyle = "rgba(200,215,255,.10)"; bgx.lineWidth = 2; bgx.beginPath(); for (const s of PAT.stars) { const y = (s.y + t * (900 + s.r * 40)) % 2000 - 40, x = (s.x + t * 60) % 1080; bgx.moveTo(x, y); bgx.lineTo(x - 10, y + 46); } bgx.stroke();
+    const per = 3.4, n = Math.floor(t / per), d = t - n * per, al = d < .5 ? Math.exp(-d * 7) * (Math.sin(d * 60) > -.3 ? 1 : .35) : 0;
+    if (al > .01) { const r = rng(1000 + n); let x = 160 + r() * 760, y = 0; bgx.strokeStyle = `rgba(${TH.glow},${(al * .9).toFixed(3)})`; bgx.lineWidth = 9; bgx.lineJoin = "round"; bgx.shadowColor = `rgba(${TH.glow},.9)`; bgx.shadowBlur = 40; bgx.beginPath(); bgx.moveTo(x, y); while (y < 600) { x += (r() - .5) * 170; y += 50 + r() * 80; bgx.lineTo(x, y); } bgx.stroke(); bgx.shadowBlur = 0; bgx.fillStyle = `rgba(255,255,255,${(al * .07).toFixed(3)})`; bgx.fillRect(0, 0, 1080, 1920); }
   } else if (TH.pattern === "hazard") {
     for (const [y0, dir] of [[150, 1], [1640, -1]]) { const h = 30, off = ((t * 40 * dir) % 60 + 60) % 60; bgx.save(); bgx.beginPath(); bgx.rect(0, y0, 1080, h); bgx.clip(); bgx.fillStyle = TH.accent; bgx.fillRect(0, y0, 1080, h); bgx.fillStyle = "#111"; for (let x = -120 + off; x < 1140; x += 60) { bgx.beginPath(); bgx.moveTo(x, y0 + h); bgx.lineTo(x + 30, y0 + h); bgx.lineTo(x + 30 + h, y0); bgx.lineTo(x + h, y0); bgx.closePath(); bgx.fill(); } bgx.restore(); }
   }
@@ -332,6 +336,66 @@ function drawPattern(t, light) {
 const BOKEH = (() => { const r = rng(11), a = []; for (let i = 0; i < 13; i++) a.push({ x: 60 + r() * 960, y: 80 + r() * 1760, r: 90 + r() * 130, ph: r() * 6.28, sp: .18 + r() * .24, amp: 14 + r() * 20, col: (TH.bokeh || ["rgba(255,190,80,", "rgba(230,46,58,", "rgba(90,170,160,", "rgba(255,220,150,"])[i % (TH.bokeh || [1, 2, 3, 4]).length], a: (.07 + r() * .07).toFixed(3) }); return a; })();
 const grain = (() => { const r = rng(3), tiles = []; for (let n = 0; n < 4; n++) { const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), im = g.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 13; } g.putImageData(im, 0, 0); tiles.push(c); } return tiles; })();
 const gctx = $("grain").getContext("2d");
+
+// ---------- stickman host (DATA.host: [[t, pose, mood, say?], ...]) ----------
+// He stands under the card, walks in after the hook, and acts each beat: points, thinks, shrugs, jumps.
+// `say` is a short reaction in a speech bubble. He is a filled character (not a line figure): clothes follow the theme accent.
+const HOSTD = DATA.host || null, NS = "http://www.w3.org/2000/svg";
+const hostEl = (() => { if (!HOSTD) return null; const el = document.createElementNS(NS, "svg"); el.setAttribute("viewBox", "0 0 1080 1920"); el.setAttribute("width", 1080); el.setAttribute("height", 1920); el.style.cssText = "position:absolute;left:0;top:0;pointer-events:none"; $("stage").insertBefore(el, $("flash")); return el; })();
+const HPOSE = {
+  stand: { hd: [0, -178], nk: [0, -140], hp: [0, 0], le: [-30, -92], lh: [-42, -40], re: [30, -92], rh: [42, -40], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+  point: { hd: [6, -180], nk: [2, -140], hp: [0, 0], le: [-30, -92], lh: [-42, -40], re: [58, -150], rh: [96, -214], lk: [-22, 62], lf: [-34, 128], rk: [24, 62], rf: [44, 124] },
+  shrug: { hd: [0, -172], nk: [0, -140], hp: [0, 0], le: [-62, -112], lh: [-84, -146], re: [62, -112], rh: [84, -146], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+  cheer: { hd: [0, -184], nk: [0, -146], hp: [0, -6], le: [-50, -176], lh: [-62, -238], re: [50, -176], rh: [62, -238], lk: [-26, 56], lf: [-40, 118], rk: [26, 56], rf: [40, 118] },
+  think: { hd: [-4, -178], nk: [0, -140], hp: [0, 0], le: [-30, -92], lh: [-42, -40], re: [44, -98], rh: [14, -150], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+  shock: { hd: [-8, -182], nk: [-6, -142], hp: [-4, 0], le: [-56, -150], lh: [-30, -196], re: [48, -150], rh: [22, -196], lk: [-30, 60], lf: [-52, 124], rk: [10, 62], rf: [26, 128] },
+  count: { hd: [4, -178], nk: [0, -140], hp: [0, 0], le: [-40, -110], lh: [-18, -150], re: [44, -112], rh: [70, -160], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+  wave:  { hd: [0, -178], nk: [0, -140], hp: [0, 0], le: [-30, -92], lh: [-42, -40], re: [58, -150], rh: [70, -210], lk: [-18, 62], lf: [-26, 128], rk: [18, 62], rf: [26, 128] },
+};
+function drawHost(t, light) {
+  if (!hostEl) return;
+  let i = 0; while (i + 1 < HOSTD.length && HOSTD[i + 1][0] <= t) i++;
+  const cur = HPOSE[HOSTD[i][1]] || HPOSE.stand, prev = HPOSE[HOSTD[Math.max(0, i - 1)][1]] || HPOSE.stand, t0 = HOSTD[i][0], k = i ? eOut(seg(t, t0, t0 + .26)) : 1;
+  const mood = HOSTD[i][2] || "smile", say = HOSTD[i][3] || "", first = HOSTD[0][0];
+  const walk = seg(t, first, first + .7), xin = lerp(-180, 0, eOut(walk)), stepping = walk > 0 && walk < 1;
+  const jump = (HOSTD[i][1] === "cheer" || HOSTD[i][1] === "shock") ? Math.max(0, Math.sin(clamp((t - t0) / .42) * Math.PI)) * (HOSTD[i][1] === "cheer" ? 46 : 22) : 0;
+  const S = .98, x0 = 226 + xin, y0 = 1772 - jump, bob = Math.sin(t * Math.PI * 2) * 3;
+  const P = j => { let px = lerp(prev[j][0], cur[j][0], k), py = lerp(prev[j][1], cur[j][1], k) + (j === "lf" || j === "rf" ? 0 : bob); if (stepping && (j === "lf" || j === "lk")) px += Math.sin(t * 22) * 22; if (stepping && (j === "rf" || j === "rk")) px -= Math.sin(t * 22) * 22; if (HOSTD[i][1] === "wave" && (j === "rh")) px += Math.sin(t * 9) * 16; if (j === "le" || j === "lh") px -= 16; if (j === "re" || j === "rh") px += 16; return [x0 + px * S, y0 + py * S]; };
+  const ink = light ? TH.endInk : TH.text, acc = light ? (TH.endAccent || TH.accent) : TH.accent, pt = j => P(j).map(v => v.toFixed(1)).join(",");
+  const [hx, hy0] = P("hd"), hy = hy0 - 26 * S, [nx, ny] = P("nk"), sh = `${nx.toFixed(1)},${(ny + 20 * S).toFixed(1)}`;
+  const lit = (HOSTD[i][1] === "cheer" || HOSTD[i][1] === "shock" || HOSTD[i][1] === "point") ? Math.exp(-Math.max(0, t - t0 - .1) * 1.4) * clamp((t - t0) / .1) : 0;
+  const mx = hx, my = hy + 26 * S, M = { smile: `M${mx - 12 * S},${my} Q${mx},${my + 10 * S} ${mx + 12 * S},${my}`, big: `M${mx - 15 * S},${my - 2 * S} Q${mx},${my + 17 * S} ${mx + 15 * S},${my - 2 * S}`, sad: `M${mx - 12 * S},${my + 6 * S} Q${mx},${my - 4 * S} ${mx + 12 * S},${my + 6 * S}`, flat: `M${mx - 10 * S},${my + 2 * S} L${mx + 10 * S},${my + 2 * S}`, o: `M${mx - 6 * S},${my + 4 * S} a${6 * S},${8 * S} 0 1 0 ${12 * S},0 a${6 * S},${8 * S} 0 1 0 ${-12 * S},0` };
+  const eyeR = (mood === "o" ? 7.5 : 5.5) * S, bk = spring(t - t0 - .12, 16, .55), bubA = say ? clamp((t - t0 - .1) / .1) * (1 - seg(t, (HOSTD[i + 1] ? HOSTD[i + 1][0] : VIDEO.duration) - .12, (HOSTD[i + 1] ? HOSTD[i + 1][0] : VIDEO.duration))) : 0;
+  const bw = Math.min(600, 90 + [...say].length * 34), bx = 372 + xin, by = 1618;
+  // filled character: white head, cap, bean torso in the theme colour, thin dark limbs, on a white sticker outline so he reads on dark themes
+  const K = "#15151A", R = 58 * S, [qx, qy] = P("hp"), tx = (nx + qx) / 2, ty = (ny + qy) / 2 + 4 * S, tl = Math.hypot(qx - nx, qy - ny), ta = (-Math.atan2(qx - nx, qy - ny) * 180 / Math.PI).toFixed(1), ry = tl / 2 + 8 * S, rx = 58 * S, tw = 42 * S, f1 = v => v.toFixed(1), pear = (bw, tp, r) => `M0,${f1(-r)} C${f1(tp)},${f1(-r)} ${f1(bw)},${f1(-r * .3)} ${f1(bw)},${f1(r * .3)} C${f1(bw)},${f1(r * .85)} ${f1(bw * .62)},${f1(r)} 0,${f1(r)} C${f1(-bw * .62)},${f1(r)} ${f1(-bw)},${f1(r * .85)} ${f1(-bw)},${f1(r * .3)} C${f1(-bw)},${f1(-r * .3)} ${f1(-tp)},${f1(-r)} 0,${f1(-r)} Z`;
+  const hipL = `${f1(qx - 20 * S)},${f1(qy - 6 * S)}`, hipR = `${f1(qx + 20 * S)},${f1(qy - 6 * S)}`, shL = `${f1(nx - 40 * S)},${f1(ny + 34 * S)}`, shR = `${f1(nx + 40 * S)},${f1(ny + 34 * S)}`;
+  const legs = `M${hipL} L${pt("lf")} M${hipR} L${pt("rf")}`, arms = `M${shL} L${pt("le")} L${pt("lh")} M${shR} L${pt("re")} L${pt("rh")}`;
+  const capD = `M${hx - R},${hy - .28 * R} A${R},${R} 0 0 1 ${hx + R},${hy - .28 * R} Q${hx},${hy - .6 * R} ${hx - R},${hy - .28 * R} Z`;
+  const brow = { flat: [[-28, -24, -11, -15], [28, -24, 11, -15]], sad: [[-28, -16, -11, -24], [28, -16, 11, -24]], o: [[-26, -30, -12, -33], [26, -30, 12, -33]] }[mood] || [];
+  const eye = mood === "o" ? [8, 10.5] : mood === "flat" ? [7, 6] : [6.5, 9.5];
+  const mouth = mood === "big" ? `<path d="M${mx - 15 * S},${my} Q${mx},${my + 24 * S} ${mx + 15 * S},${my} Z" fill="${K}" stroke="${K}" stroke-width="${4 * S}" stroke-linejoin="round"/>` : mood === "o" ? `<ellipse cx="${mx}" cy="${my + 5 * S}" rx="${6 * S}" ry="${8 * S}" fill="${K}"/>` : `<path d="${M[mood] || M.smile}" fill="none" stroke="${K}" stroke-width="${5.5 * S}" stroke-linecap="round"/>`;
+  const feet = ["lf", "rf"].map(j => { const [fx, fy] = P(j); return `<ellipse cx="${(fx + (j === "lf" ? -8 : 8) * S).toFixed(1)}" cy="${fy.toFixed(1)}" rx="${15 * S}" ry="${8 * S}" fill="${K}"/>`; }).join(""), hands = ["lh", "rh"].map(j => `<circle cx="${P(j)[0].toFixed(1)}" cy="${P(j)[1].toFixed(1)}" r="${9 * S}" fill="${K}"/>`).join("");
+  const torso = (fill, sw, col) => `<g transform="translate(${tx.toFixed(1)},${ty.toFixed(1)}) rotate(${ta})"><path d="${pear(rx, tw, ry)}" fill="${fill}" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/></g>`;
+  const body = `<g stroke="#fff" fill="#fff" stroke-linecap="round" stroke-linejoin="round" opacity="${light ? 0 : .95}"><path d="${legs} ${arms}" fill="none" stroke-width="${17 * S}"/>${torso("#fff", 22 * S, "#fff")}<circle cx="${hx}" cy="${hy}" r="${R + 2}" stroke-width="${22 * S}"/><path d="${capD}" stroke-width="${22 * S}"/></g>
+    <path d="${legs}" fill="none" stroke="${K}" stroke-width="${10 * S}" stroke-linecap="round" stroke-linejoin="round"/>${feet}
+    ${torso(acc, 8 * S, K)}
+    <g transform="translate(${tx.toFixed(1)},${ty.toFixed(1)}) rotate(${ta})"><clipPath id="hostT"><path d="${pear(rx - 4 * S, tw - 4 * S, ry - 4 * S)}"/></clipPath><g clip-path="url(#hostT)" fill="rgba(0,0,0,.3)"><rect x="${-rx}" y="${(ry * .05).toFixed(1)}" width="${rx * 2}" height="${ry.toFixed(1)}"/><rect x="${-30 * S}" y="${-ry}" width="${12 * S}" height="${(ry * 1.1).toFixed(1)}"/><rect x="${18 * S}" y="${-ry}" width="${12 * S}" height="${(ry * 1.1).toFixed(1)}"/></g><rect x="${-13 * S}" y="${(ry * .28).toFixed(1)}" width="${26 * S}" height="${20 * S}" rx="${4 * S}" fill="none" stroke="${K}" stroke-width="${4 * S}"/></g>
+    <path d="${arms}" fill="none" stroke="${K}" stroke-width="${10 * S}" stroke-linecap="round" stroke-linejoin="round"/>${hands}
+    <circle cx="${hx}" cy="${hy}" r="${R}" fill="#fff" stroke="${K}" stroke-width="${8 * S}"/>
+    <path d="M${hx - R * .99},${hy - .28 * R} Q${hx - R * .95},${hy + .3 * R} ${hx - R * .7},${hy + .36 * R} Q${hx - R * .72},${hy - .05 * R} ${hx - R * .4},${hy - .3 * R} Z" fill="#6B4226"/>
+    <ellipse cx="${hx + R * .8}" cy="${hy - .3 * R}" rx="${R * .55}" ry="${R * .15}" fill="${acc}" stroke="${K}" stroke-width="${7 * S}"/>
+    <path d="${capD}" fill="${acc}" stroke="${K}" stroke-width="${8 * S}" stroke-linejoin="round"/><path d="M${hx - R * .5},${hy - .82 * R} Q${hx - R * .35},${hy - .55 * R} ${hx - R * .38},${hy - .42 * R} M${hx + R * .5},${hy - .82 * R} Q${hx + R * .35},${hy - .55 * R} ${hx + R * .38},${hy - .42 * R}" fill="none" stroke="rgba(0,0,0,.3)" stroke-width="${6 * S}"/><circle cx="${hx}" cy="${hy - R}" r="${6 * S}" fill="${K}"/>
+    <ellipse cx="${hx - 19 * S}" cy="${hy + 4 * S}" rx="${eye[0] * S}" ry="${eye[1] * S}" fill="${K}"/><ellipse cx="${hx + 19 * S}" cy="${hy + 4 * S}" rx="${eye[0] * S}" ry="${eye[1] * S}" fill="${K}"/>
+    ${brow.map(b => `<path d="M${hx + b[0] * S},${hy + (b[1] + 8) * S} L${hx + b[2] * S},${hy + (b[3] + 8) * S}" stroke="${K}" stroke-width="${5.5 * S}" stroke-linecap="round"/>`).join("")}
+    ${mouth}`;
+  const html = `<ellipse cx="${x0}" cy="${1772 + 128 * S + 8}" rx="${(86 - jump * .5).toFixed(0)}" ry="13" fill="rgba(0,0,0,${light ? .12 : .32})"/>
+    ${lit > .03 ? `<circle cx="${hx}" cy="${hy}" r="${(120 * S).toFixed(0)}" fill="${acc}" opacity="${(lit * .28).toFixed(3)}"/>` : ""}
+    ${body}
+    ${say ? `<g opacity="${bubA.toFixed(3)}" transform="translate(${bx},${by}) scale(${lerp(.6, 1, bk).toFixed(3)})"><path d="M0,34 Q0,0 34,0 H${bw - 34} Q${bw},0 ${bw},34 V86 Q${bw},120 ${bw - 34},120 H70 L18,158 L34,120 Q0,120 0,86 Z" fill="${acc}"/><text x="${bw / 2}" y="78" text-anchor="middle" font-family="${DATA.font === "kufam" ? "Kufam" : "Kufi"}" font-weight="800" font-size="52" fill="${light ? "#fff" : TH.onAccent}" direction="rtl">${say}</text></g>` : ""}`;
+  if (hostEl._h !== html) { hostEl.innerHTML = html; hostEl._h = html; }
+  hostEl.style.opacity = t < first ? 0 : 1;
+}
 
 // ---------- seek ----------
 function seek(t) {
@@ -372,6 +436,7 @@ function seek(t) {
     $("ltTitle").style.color = light ? TH.endInk : TH.text; $("ltSub").style.color = light ? "#55555F" : TH.muted;
     $("ltSub").style.opacity = clamp((t - i0 - .25) / .2);
   } else lt3.style.opacity = 0;
+  drawHost(t, light);
   $("progF").style.width = (t / VIDEO.duration * 100).toFixed(2) + "%";
   $("prog").style.background = light ? "rgba(0,0,0,.12)" : "rgba(255,255,255,.12)";
   $("rec").style.opacity = Math.floor(t * 2) % 2 ? .35 : 1;
