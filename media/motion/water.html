@@ -369,8 +369,8 @@ function drawHost(t, light) {
   const bw = Math.min(600, 90 + [...say].length * 34), bx = 372 + xin, by = 1618;
   // filled character: white head, cap, bean torso in the theme colour, thin dark limbs, on a white sticker outline so he reads on dark themes
   const K = "#15151A", R = 58 * S, [qx, qy] = P("hp"), tx = (nx + qx) / 2, ty = (ny + qy) / 2 + 4 * S, tl = Math.hypot(qx - nx, qy - ny), ta = (-Math.atan2(qx - nx, qy - ny) * 180 / Math.PI).toFixed(1), ry = tl / 2 + 8 * S, rx = 58 * S, tw = 42 * S, f1 = v => v.toFixed(1), pear = (bw, tp, r) => `M0,${f1(-r)} C${f1(tp)},${f1(-r)} ${f1(bw)},${f1(-r * .3)} ${f1(bw)},${f1(r * .3)} C${f1(bw)},${f1(r * .85)} ${f1(bw * .62)},${f1(r)} 0,${f1(r)} C${f1(-bw * .62)},${f1(r)} ${f1(-bw)},${f1(r * .85)} ${f1(-bw)},${f1(r * .3)} C${f1(-bw)},${f1(-r * .3)} ${f1(-tp)},${f1(-r)} 0,${f1(-r)} Z`;
-  const hipL = `${f1(qx - 22 * S)},${f1(qy - 6 * S)}`, hipR = `${f1(qx + 22 * S)},${f1(qy - 6 * S)}`, shL = `${f1(nx - 40 * S)},${f1(ny + 34 * S)}`, shR = `${f1(nx + 40 * S)},${f1(ny + 34 * S)}`;
-  const legs = `M${hipL} L${pt("lk")} L${pt("lf")} M${hipR} L${pt("rk")} L${pt("rf")}`, arms = `M${shL} L${pt("le")} L${pt("lh")} M${shR} L${pt("re")} L${pt("rh")}`;
+  const hipL = `${f1(qx - 20 * S)},${f1(qy - 6 * S)}`, hipR = `${f1(qx + 20 * S)},${f1(qy - 6 * S)}`, shL = `${f1(nx - 40 * S)},${f1(ny + 34 * S)}`, shR = `${f1(nx + 40 * S)},${f1(ny + 34 * S)}`;
+  const legs = `M${hipL} L${pt("lf")} M${hipR} L${pt("rf")}`, arms = `M${shL} L${pt("le")} L${pt("lh")} M${shR} L${pt("re")} L${pt("rh")}`;
   const capD = `M${hx - R},${hy - .28 * R} A${R},${R} 0 0 1 ${hx + R},${hy - .28 * R} Q${hx},${hy - .6 * R} ${hx - R},${hy - .28 * R} Z`;
   const brow = { flat: [[-28, -24, -11, -15], [28, -24, 11, -15]], sad: [[-28, -16, -11, -24], [28, -16, 11, -24]], o: [[-26, -30, -12, -33], [26, -30, 12, -33]] }[mood] || [];
   const eye = mood === "o" ? [8, 10.5] : mood === "flat" ? [7, 6] : [6.5, 9.5];
