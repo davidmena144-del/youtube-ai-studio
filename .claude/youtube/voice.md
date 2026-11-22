@@ -49,3 +49,11 @@ Read by the yt-* skills (copy to `~/.claude/youtube/voice.md` in a new session i
 - الألوان: **على حسب موضوع الفيديو، مش أحمر وأسود ثابت** (طلب صاحب القناة 19 نوفمبر). كل فيديو ليه لوحة وخلفية من موضوعه: أوامر = أخضر ترمنال، حاجات مستخبية = بنفسجي ودهبي بنجوم، تحذير = أزرق ليلي وأصفر شريط تحذير، نوم = نيلي، وهكذا. ألوان البراند (أسود #0B0B10، أصفر #FFD23F، أحمر #E62E3A) للّوجو والبانر بس.
 - الخط: Kufam (تقيل للكلمة الرئيسية)، والكابشن كلمة كلمة بمربع على الكلمة المهمة.
 - آخر الفيديو: طلب واحد بس (احفظ الفيديو، أو تابع تكّة).
+
+## Narration (owner decision, 22 Nov)
+
+- Narrator: Speko connector, provider `inworld`, voice `Omar`, `intent.language: ar-EG`. Free credit only: never top up, never enable auto top-up, never use the ElevenLabs voices there (they need a paid top-up).
+- Pace: normal speed (no slow-down). The owner preferred the faster take over the slowed one. The 2-second hook line is recorded at speed 1.3 so it ends with the hook.
+- The voice says the caption words exactly, and the voice sets the clock (`explainers/narr.py`, `<name>.say.json`).
+- Length: write enough content that the narrated video still runs about 34 seconds (the first narrated test came out at 27 s, so add roughly a quarter more facts).
+- Applies from the next new videos; already published videos stay as they are.

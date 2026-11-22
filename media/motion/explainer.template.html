@@ -438,7 +438,7 @@ window.seek = seek;
 // ---------- sound: a light groove + UI sounds on the cuts (no narration) ----------
 window.buildAudio = async function (ctx) {
   const sr = ctx.sampleRate, BEAT = 60 / (DATA.bpm || 112);
-  const master = ctx.createGain(); master.gain.value = NARR ? .24 : .8; // music sits under the voice
+  const master = ctx.createGain(); master.gain.value = NARR ? .3 : .8; // music sits under the voice
   if (NARR && NARR.audio) { const bin = atob(NARR.audio.split(",")[1]), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); const vs = ctx.createBufferSource(), vg = ctx.createGain(); vs.buffer = await ctx.decodeAudioData(u8.buffer); vg.gain.value = NARR.gain || 1.5; vs.connect(vg); vg.connect(ctx.destination); vs.start(0); }
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
   master.connect(comp); comp.connect(ctx.destination);
