@@ -1,0 +1,61 @@
+name: Voice test (Egyptian)
+
+# Tries the free open-source VoiceTut-TTS (Apache-2.0, Egyptian Arabic) on a short sample and pushes
+# the MP3s to the `voice-test` branch so the owner can listen and choose a voice.
+# Nothing is published by this workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      speakers:
+        description: Space-separated built-in speaker names (empty = first male and female found)
+        required: false
+        default: ""
+        type: string
+  push:
+    branches: [claude/channel-manager-p1]
+    paths: [.github/workflows/voice-test.yml, media/motion/voice_test.py]
+
+permissions:
+  contents: write # pushes only to the voice-test branch
+
+concurrency:
+  group: voice-test
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SPEAKERS: ${{ inputs.speakers }}
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: System packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+      - name: Install the voice engine
+        run: |
+          python -m venv .venv && . .venv/bin/activate
+          pip install -q --index-url https://download.pytorch.org/whl/cpu torch torchaudio
+          pip install -q git+https://github.com/k2-fsa/OmniVoice.git
+          pip install -q voicetut-tts==0.1.1 soundfile numpy
+      - name: Speak the sample
+        run: |
+          . .venv/bin/activate
+          voicetut --list-speakers || true
+          python media/motion/voice_test.py /tmp/out
+      - name: Push the samples to voice-test
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q --orphan voice-test-new
+          git rm -rfq --cached .
+          git clean -fdxq -e .venv
+          cp /tmp/out/* .
+          git add ./*.mp3 ./*.txt
+          git commit -q -m "Voice samples"
+          git push -q -f origin HEAD:voice-test
