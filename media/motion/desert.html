@@ -341,7 +341,7 @@ const gctx = $("grain").getContext("2d");
 
 // ---------- stickman host (DATA.host: [[t, pose, mood, say?], ...]) ----------
 // He stands under the card, walks in after the hook, and acts each beat: points, thinks, shrugs, jumps.
-// `say` is a short reaction in a speech bubble. Stroke and glow follow the theme.
+// `say` is a short reaction in a speech bubble. He is a filled character (not a line figure): clothes follow the theme accent.
 const HOSTD = DATA.host || null, NS = "http://www.w3.org/2000/svg";
 const hostEl = (() => { if (!HOSTD) return null; const el = document.createElementNS(NS, "svg"); el.setAttribute("viewBox", "0 0 1080 1920"); el.setAttribute("width", 1080); el.setAttribute("height", 1920); el.style.cssText = "position:absolute;left:0;top:0;pointer-events:none"; $("stage").insertBefore(el, $("flash")); return el; })();
 const HPOSE = {
@@ -361,20 +361,38 @@ function drawHost(t, light) {
   const mood = HOSTD[i][2] || "smile", say = HOSTD[i][3] || "", first = HOSTD[0][0];
   const walk = seg(t, first, first + .7), xin = lerp(-180, 0, eOut(walk)), stepping = walk > 0 && walk < 1;
   const jump = (HOSTD[i][1] === "cheer" || HOSTD[i][1] === "shock") ? Math.max(0, Math.sin(clamp((t - t0) / .42) * Math.PI)) * (HOSTD[i][1] === "cheer" ? 46 : 22) : 0;
-  const S = .92, x0 = 232 + xin, y0 = 1772 - jump, bob = Math.sin(t * Math.PI * 2) * 3;
+  const S = .98, x0 = 226 + xin, y0 = 1772 - jump, bob = Math.sin(t * Math.PI * 2) * 3;
   const P = j => { let px = lerp(prev[j][0], cur[j][0], k), py = lerp(prev[j][1], cur[j][1], k) + (j === "lf" || j === "rf" ? 0 : bob); if (stepping && (j === "lf" || j === "lk")) px += Math.sin(t * 22) * 22; if (stepping && (j === "rf" || j === "rk")) px -= Math.sin(t * 22) * 22; if (HOSTD[i][1] === "wave" && (j === "rh")) px += Math.sin(t * 9) * 16; return [x0 + px * S, y0 + py * S]; };
   const ink = light ? TH.endInk : TH.text, acc = light ? (TH.endAccent || TH.accent) : TH.accent, pt = j => P(j).map(v => v.toFixed(1)).join(",");
-  const [hx, hy] = P("hd"), [nx, ny] = P("nk"), sh = `${nx.toFixed(1)},${(ny + 20 * S).toFixed(1)}`;
+  const [hx, hy0] = P("hd"), hy = hy0 - 26 * S, [nx, ny] = P("nk"), sh = `${nx.toFixed(1)},${(ny + 20 * S).toFixed(1)}`;
   const lit = (HOSTD[i][1] === "cheer" || HOSTD[i][1] === "shock" || HOSTD[i][1] === "point") ? Math.exp(-Math.max(0, t - t0 - .1) * 1.4) * clamp((t - t0) / .1) : 0;
-  const mx = hx, my = hy + 14 * S, M = { smile: `M${mx - 12 * S},${my} Q${mx},${my + 10 * S} ${mx + 12 * S},${my}`, big: `M${mx - 15 * S},${my - 2 * S} Q${mx},${my + 17 * S} ${mx + 15 * S},${my - 2 * S}`, sad: `M${mx - 12 * S},${my + 6 * S} Q${mx},${my - 4 * S} ${mx + 12 * S},${my + 6 * S}`, flat: `M${mx - 10 * S},${my + 2 * S} L${mx + 10 * S},${my + 2 * S}`, o: `M${mx - 6 * S},${my + 4 * S} a${6 * S},${8 * S} 0 1 0 ${12 * S},0 a${6 * S},${8 * S} 0 1 0 ${-12 * S},0` };
+  const mx = hx, my = hy + 26 * S, M = { smile: `M${mx - 12 * S},${my} Q${mx},${my + 10 * S} ${mx + 12 * S},${my}`, big: `M${mx - 15 * S},${my - 2 * S} Q${mx},${my + 17 * S} ${mx + 15 * S},${my - 2 * S}`, sad: `M${mx - 12 * S},${my + 6 * S} Q${mx},${my - 4 * S} ${mx + 12 * S},${my + 6 * S}`, flat: `M${mx - 10 * S},${my + 2 * S} L${mx + 10 * S},${my + 2 * S}`, o: `M${mx - 6 * S},${my + 4 * S} a${6 * S},${8 * S} 0 1 0 ${12 * S},0 a${6 * S},${8 * S} 0 1 0 ${-12 * S},0` };
   const eyeR = (mood === "o" ? 7.5 : 5.5) * S, bk = spring(t - t0 - .12, 16, .55), bubA = say ? clamp((t - t0 - .1) / .1) * (1 - seg(t, (HOSTD[i + 1] ? HOSTD[i + 1][0] : VIDEO.duration) - .12, (HOSTD[i + 1] ? HOSTD[i + 1][0] : VIDEO.duration))) : 0;
   const bw = Math.min(600, 90 + [...say].length * 34), bx = 372 + xin, by = 1618;
+  // filled character: white head, cap, bean torso in the theme colour, thin dark limbs, on a white sticker outline so he reads on dark themes
+  const K = "#15151A", R = 58 * S, [qx, qy] = P("hp"), tx = (nx + qx) / 2, ty = (ny + qy) / 2 + 4 * S, tl = Math.hypot(qx - nx, qy - ny), ta = (-Math.atan2(qx - nx, qy - ny) * 180 / Math.PI).toFixed(1), ry = tl / 2 + 10 * S, rx = 60 * S;
+  const legs = `M${pt("hp")} L${pt("lk")} L${pt("lf")} M${pt("hp")} L${pt("rk")} L${pt("rf")}`, arms = `M${sh} L${pt("le")} L${pt("lh")} M${sh} L${pt("re")} L${pt("rh")}`;
+  const capD = `M${hx - R},${hy - .28 * R} A${R},${R} 0 0 1 ${hx + R},${hy - .28 * R} Q${hx},${hy - .6 * R} ${hx - R},${hy - .28 * R} Z`;
+  const brow = { flat: [[-28, -24, -11, -15], [28, -24, 11, -15]], sad: [[-28, -16, -11, -24], [28, -16, 11, -24]], o: [[-26, -30, -12, -33], [26, -30, 12, -33]] }[mood] || [];
+  const eye = mood === "o" ? [8, 10.5] : mood === "flat" ? [7, 6] : [6.5, 9.5];
+  const mouth = mood === "big" ? `<path d="M${mx - 15 * S},${my} Q${mx},${my + 24 * S} ${mx + 15 * S},${my} Z" fill="${K}" stroke="${K}" stroke-width="${4 * S}" stroke-linejoin="round"/>` : mood === "o" ? `<ellipse cx="${mx}" cy="${my + 5 * S}" rx="${6 * S}" ry="${8 * S}" fill="${K}"/>` : `<path d="${M[mood] || M.smile}" fill="none" stroke="${K}" stroke-width="${5.5 * S}" stroke-linecap="round"/>`;
+  const feet = ["lf", "rf"].map(j => { const [fx, fy] = P(j); return `<ellipse cx="${(fx + (j === "lf" ? -8 : 8) * S).toFixed(1)}" cy="${fy.toFixed(1)}" rx="${15 * S}" ry="${8 * S}" fill="${K}"/>`; }).join(""), hands = ["lh", "rh"].map(j => `<circle cx="${P(j)[0].toFixed(1)}" cy="${P(j)[1].toFixed(1)}" r="${9 * S}" fill="${K}"/>`).join("");
+  const torso = (fill, sw, col) => `<g transform="translate(${tx.toFixed(1)},${ty.toFixed(1)}) rotate(${ta})"><ellipse rx="${rx}" ry="${ry.toFixed(1)}" fill="${fill}" stroke="${col}" stroke-width="${sw}"/></g>`;
+  const body = `<g stroke="#fff" fill="#fff" stroke-linecap="round" stroke-linejoin="round" opacity="${light ? 0 : .95}"><path d="${legs} ${arms}" fill="none" stroke-width="${24 * S}"/>${torso("#fff", 22 * S, "#fff")}<circle cx="${hx}" cy="${hy}" r="${R + 2}" stroke-width="${22 * S}"/><path d="${capD}" stroke-width="${22 * S}"/></g>
+    <path d="${legs}" fill="none" stroke="${K}" stroke-width="${10 * S}" stroke-linecap="round" stroke-linejoin="round"/>${feet}
+    ${torso(acc, 8 * S, K)}
+    <g transform="translate(${tx.toFixed(1)},${ty.toFixed(1)}) rotate(${ta})"><clipPath id="hostT"><ellipse rx="${rx - 4 * S}" ry="${(ry - 4 * S).toFixed(1)}"/></clipPath><g clip-path="url(#hostT)" fill="rgba(0,0,0,.3)"><rect x="${-rx}" y="${(-ry * .12).toFixed(1)}" width="${rx * 2}" height="${(ry * 1.2).toFixed(1)}"/><rect x="${-36 * S}" y="${-ry}" width="${13 * S}" height="${ry}"/><rect x="${23 * S}" y="${-ry}" width="${13 * S}" height="${ry}"/></g><rect x="${-11 * S}" y="${(ry * .1).toFixed(1)}" width="${22 * S}" height="${18 * S}" rx="${4 * S}" fill="none" stroke="${K}" stroke-width="${4 * S}"/></g>
+    <path d="${arms}" fill="none" stroke="${K}" stroke-width="${10 * S}" stroke-linecap="round" stroke-linejoin="round"/>${hands}
+    <circle cx="${hx}" cy="${hy}" r="${R}" fill="#fff" stroke="${K}" stroke-width="${8 * S}"/>
+    <path d="M${hx - R * .99},${hy - .28 * R} Q${hx - R * .95},${hy + .3 * R} ${hx - R * .7},${hy + .36 * R} Q${hx - R * .72},${hy - .05 * R} ${hx - R * .4},${hy - .3 * R} Z" fill="#6B4226"/>
+    <ellipse cx="${hx + R * .8}" cy="${hy - .3 * R}" rx="${R * .55}" ry="${R * .15}" fill="${acc}" stroke="${K}" stroke-width="${7 * S}"/>
+    <path d="${capD}" fill="${acc}" stroke="${K}" stroke-width="${8 * S}" stroke-linejoin="round"/><path d="M${hx - R * .5},${hy - .82 * R} Q${hx - R * .35},${hy - .55 * R} ${hx - R * .38},${hy - .42 * R} M${hx + R * .5},${hy - .82 * R} Q${hx + R * .35},${hy - .55 * R} ${hx + R * .38},${hy - .42 * R}" fill="none" stroke="rgba(0,0,0,.3)" stroke-width="${6 * S}"/><circle cx="${hx}" cy="${hy - R}" r="${6 * S}" fill="${K}"/>
+    <ellipse cx="${hx - 19 * S}" cy="${hy + 4 * S}" rx="${eye[0] * S}" ry="${eye[1] * S}" fill="${K}"/><ellipse cx="${hx + 19 * S}" cy="${hy + 4 * S}" rx="${eye[0] * S}" ry="${eye[1] * S}" fill="${K}"/>
+    ${brow.map(b => `<path d="M${hx + b[0] * S},${hy + (b[1] + 8) * S} L${hx + b[2] * S},${hy + (b[3] + 8) * S}" stroke="${K}" stroke-width="${5.5 * S}" stroke-linecap="round"/>`).join("")}
+    ${mouth}`;
   const html = `<ellipse cx="${x0}" cy="${1772 + 128 * S + 8}" rx="${(86 - jump * .5).toFixed(0)}" ry="13" fill="rgba(0,0,0,${light ? .12 : .32})"/>
-    ${lit > .03 ? `<circle cx="${hx}" cy="${hy}" r="${(100 * S).toFixed(0)}" fill="${acc}" opacity="${(lit * .28).toFixed(3)}"/>` : ""}
-    <path d="M${pt("nk")} L${pt("hp")} M${sh} L${pt("le")} L${pt("lh")} M${sh} L${pt("re")} L${pt("rh")} M${pt("hp")} L${pt("lk")} L${pt("lf")} M${pt("hp")} L${pt("rk")} L${pt("rf")}" fill="none" stroke="${ink}" stroke-width="${15 * S}" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${hx}" cy="${hy}" r="${36 * S}" fill="${lit > .3 ? acc : (light ? TH.endBg : TH.bg)}" stroke="${ink}" stroke-width="${12 * S}"/>
-    <circle cx="${hx - 12 * S}" cy="${hy - 4 * S}" r="${eyeR}" fill="${lit > .3 ? TH.onAccent : ink}"/><circle cx="${hx + 12 * S}" cy="${hy - 4 * S}" r="${eyeR}" fill="${lit > .3 ? TH.onAccent : ink}"/>
-    <path d="${M[mood] || M.smile}" fill="none" stroke="${lit > .3 ? TH.onAccent : ink}" stroke-width="${6 * S}" stroke-linecap="round"/>
+    ${lit > .03 ? `<circle cx="${hx}" cy="${hy}" r="${(120 * S).toFixed(0)}" fill="${acc}" opacity="${(lit * .28).toFixed(3)}"/>` : ""}
+    ${body}
     ${say ? `<g opacity="${bubA.toFixed(3)}" transform="translate(${bx},${by}) scale(${lerp(.6, 1, bk).toFixed(3)})"><path d="M0,34 Q0,0 34,0 H${bw - 34} Q${bw},0 ${bw},34 V86 Q${bw},120 ${bw - 34},120 H70 L18,158 L34,120 Q0,120 0,86 Z" fill="${acc}"/><text x="${bw / 2}" y="78" text-anchor="middle" font-family="${DATA.font === "kufam" ? "Kufam" : "Kufi"}" font-weight="800" font-size="52" fill="${light ? "#fff" : TH.onAccent}" direction="rtl">${say}</text></g>` : ""}`;
   if (hostEl._h !== html) { hostEl.innerHTML = html; hostEl._h = html; }
   hostEl.style.opacity = t < first ? 0 : 1;
