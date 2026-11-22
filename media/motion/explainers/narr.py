@@ -16,7 +16,7 @@ say = json.loads((here / f"{name}.say.json").read_text())
 src = (here / f"{name}.js").read_text()
 caps = [(float(t), x) for t, x in re.findall(r'\[(\d+(?:\.\d+)?), "((?:[^"\\\\]|\\\\.)*)"\]', src[src.index("caps: ["):src.index("shots: [")])]
 D0 = float(re.search(r"duration: (\d+(?:\.\d+)?)", src).group(1))
-HOOK, GAP, TAIL = 2.0, 0.14, 1.3  # the hook overlay owns the first 2 s
+HOOK, GAP, TAIL = 2.0, 0.24, 1.4  # the hook overlay owns the first 2 s
 
 
 def trim(i, wav):
