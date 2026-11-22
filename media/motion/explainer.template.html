@@ -76,6 +76,18 @@ body.kufam #capIn,body.kufam #ltTitle,body.kufam .k{font-weight:800}
    No narration: the captions carry the words; music + UI sounds carry the pace. Pure seek(t). */
 /*@DATA@*/
 const DATA = window.DATA;
+// Narration (window.NARR, written by explainers/narr.py): the voice sets the clock. `anchors` maps each original
+// event time to the moment the voice reaches it, and every timed event below is moved through that map,
+// so captions, shots and the host stay on the spoken words.
+const NARR = window.NARR || null;
+if (NARR) {
+  const A = NARR.anchors, D0 = DATA.duration;
+  const rt = t => { if (t > D0) return t; let i = 0; while (i + 1 < A.length && A[i + 1][0] <= t) i++; const [a0, b0] = A[i], n = A[i + 1]; if (!n || n[0] === a0) return b0; return b0 + (t - a0) / (n[0] - a0) * (n[1] - b0); };
+  for (const k of ["caps", "shots", "items", "host", "sfx"]) for (const e of DATA[k] || []) e[0] = rt(e[0]);
+  for (const k of ["light", "quiet"]) for (const e of DATA[k] || []) { e[0] = rt(e[0]); e[1] = rt(e[1]); }
+  if (DATA.capsEnd) DATA.capsEnd = rt(DATA.capsEnd);
+  DATA.duration = rt(D0);
+}
 if (DATA.font === "kufam") document.body.classList.add("kufam");
 if (DATA.lang === "en") { document.documentElement.setAttribute("dir", "ltr"); document.documentElement.lang = "en"; document.body.classList.add("en"); }
 const VIDEO = { w: 1080, h: 1920, duration: DATA.duration };
@@ -426,7 +438,8 @@ window.seek = seek;
 // ---------- sound: a light groove + UI sounds on the cuts (no narration) ----------
 window.buildAudio = async function (ctx) {
   const sr = ctx.sampleRate, BEAT = 60 / (DATA.bpm || 112);
-  const master = ctx.createGain(); master.gain.value = .8;
+  const master = ctx.createGain(); master.gain.value = NARR ? .3 : .8; // music sits under the voice
+  if (NARR && NARR.audio) { const bin = atob(NARR.audio.split(",")[1]), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); const vs = ctx.createBufferSource(), vg = ctx.createGain(); vs.buffer = await ctx.decodeAudioData(u8.buffer); vg.gain.value = NARR.gain || 1.5; vs.connect(vg); vg.connect(ctx.destination); vs.start(0); }
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
   master.connect(comp); comp.connect(ctx.destination);
   const nb = ctx.createBuffer(1, sr * 2, sr); { const r = rng(19), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
@@ -470,7 +483,7 @@ async function sampleSfx(ctx, out) {
   const r = rng(29), bus = ctx.createGain(); bus.gain.value = DATA.sfxBus || .45; bus.connect(out); out = bus; // keep effects under the music's peak
   const play = (k, t, gain, rate = 1, peak = 0) => { const b = B[k]; if (!b) return; const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = gain; s.connect(g); g.connect(out); s.start(Math.max(0, t - peak / rate)); };
   for (const [t0] of SHOTS) if (t0 > T0) play("es_swish", t0, .55, .95 + r() * .1, .131);
-  for (const [t0] of CAPS) if (t0 >= T0) play("ui_select", t0, .22, .92 + r() * .16);
+  for (const [t0] of CAPS) if (t0 >= T0) play("ui_select", t0, NARR ? .07 : .22, .92 + r() * .16);
   for (const [t0, num] of ITEMS) if (num) play("es_hit", t0, .9, 1, .058);
   for (const t0 of TYPE_TICKS) play("ui_typing", t0, .3, .88 + r() * .26);
   for (const [s0, name, o] of SHOTS) {
