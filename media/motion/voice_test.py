@@ -24,7 +24,9 @@ if not names:
         if v is not None:
             found = v() if callable(v) else v
             break
-    names = [s if isinstance(s, str) else (s.get("name") if isinstance(s, dict) else getattr(s, "name", str(s))) for s in (found or [])] or ["Mohamed", "Asmaa", "Sayed"]
+    names = [s if isinstance(s, str) else getattr(s, "speaker_name", None) or getattr(s, "name", None) for s in (found or [])]
+    pick = [n for n in ("Ahmed", "Karim", "Youssef", "Hanan", "Sarah", "Yasmin") if n in names]  # a few voices: CPU synthesis is slow
+    names = pick or [n for n in names if n][:6] or ["Ahmed", "Hanan"]
 log = []
 for name in names:
     wav = os.path.join(out, f"{name}.wav")
